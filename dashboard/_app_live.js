@@ -435,7 +435,12 @@ function Toasts({ toasts }) {
 // Componentes Header, Metrics, Queue, Detail, FlowStep, AuditRow,
 // Footer, Toasts e Icon NO se tocan.
 
-const _capCase = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const _capCase = (s) => {
+  if (!s) return s;
+  // Siglas (≤3 chars) en mayúsculas: DKV, IMQ, etc.
+  if (s.length <= 3) return s.toUpperCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 // Transforma una fila Autorizacion del API al shape que esperan los
 // componentes Queue/Detail (sin alterar ningún campo visual).

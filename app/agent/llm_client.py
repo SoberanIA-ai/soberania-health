@@ -121,6 +121,13 @@ def _mock_parse(orden_raw: str) -> dict:
         if kw in texto_lower:
             aseguradora = valor
             break
+    # Fallback: si no es ninguna de las 3 soportadas (sanitas/adeslas/dkv),
+    # extraer el nombre literal de la línea "Aseguradora: ...". El verificador
+    # se encargará de marcarla como no soportada y disparar HITL — pero el
+    # campo se persiste con su nombre real (Mapfre, Asisa, etc.) para el
+    # audit log y el dashboard.
+    if aseguradora is None:
+        aseguradora = _extraer_aseguradora_libre(orden_raw)
 
     tipo_poliza = None
     # Buscar la mas larga primero para no confundir "mas_salud" con "mas_salud_plus"
@@ -266,6 +273,21 @@ _POLIZA_LIBRE_RE = re.compile(
 def _extraer_poliza_libre(texto: str) -> Optional[str]:
     match = _POLIZA_LIBRE_RE.search(texto)
     return match.group(1) if match else None
+
+
+# Texto libre: "Aseguradora: Mapfre" → captura "Mapfre". Para nombres
+# compuestos como "DKV Seguros" captura todo hasta el salto de línea.
+_ASEGURADORA_LIBRE_RE = re.compile(
+    r"aseguradora[:\s]+([^\n]+)",
+    re.IGNORECASE,
+)
+
+
+def _extraer_aseguradora_libre(texto: str) -> Optional[str]:
+    match = _ASEGURADORA_LIBRE_RE.search(texto)
+    if not match:
+        return None
+    return match.group(1).strip() or None
 
 
 # Texto libre: "Procedimiento: TAC cerebral URGENTE" → captura el resto de

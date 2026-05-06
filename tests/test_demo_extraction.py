@@ -111,3 +111,33 @@ async def test_demo_extrae_procedimiento_descripcion(caso, db, monkeypatch):
             f"{caso['id']}: orden tiene Procedimiento: pero "
             f"procedimiento_descripcion quedó vacío"
         )
+
+
+@pytest.mark.parametrize("caso", CASOS_DEMO, ids=lambda c: c["id"])
+@pytest.mark.asyncio
+async def test_demo_extrae_aseguradora(caso, db, monkeypatch):
+    """aseguradora nunca puede quedar vacía si la orden incluye 'Aseguradora: ...'.
+
+    Aseguradoras soportadas (Sanitas/Adeslas/DKV) se persisten como canonical
+    lowercase ("sanitas", "dkv"). Aseguradoras no soportadas (Mapfre, Asisa)
+    se persisten con su nombre literal — el verificador las marca como no
+    soportadas y dispara HITL pero el campo no queda vacío.
+    """
+    import app.agent.nodes as nodes_mod
+    from app.conectores.mock_connector import MockConnector
+
+    monkeypatch.setattr(
+        nodes_mod, "MockConnector",
+        lambda **kwargs: MockConnector(seed=42, latencia_segundos=0),
+    )
+
+    service = AutorizacionService(db)
+    autorizacion = await service.procesar(caso["orden"], modo="mock")
+
+    if "Aseguradora:" not in caso["orden"]:
+        return  # casos como demo_3 / demo_10 sin aseguradora explícita
+
+    assert autorizacion.aseguradora, (
+        f"{caso['id']} ({autorizacion.paciente_nombre}): orden tiene Aseguradora "
+        f"pero el campo se persistió vacío"
+    )
