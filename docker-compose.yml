@@ -14,9 +14,12 @@ services:
       - MODO_DEFAULT=mock
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
       - ./data:/app/data
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
+      - ./pytest.ini:/app/pytest.ini
+      - ./scripts:/app/scripts
     depends_on:
       db:
         condition: service_healthy
