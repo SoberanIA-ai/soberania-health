@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     confidence_threshold_hitl: float = 0.80
     modo_default: str = "mock"
+    mock_connector_seed: int | None = None  # set para demos reproducibles
 
     smtp_host: str = ""
     smtp_port: int = 587

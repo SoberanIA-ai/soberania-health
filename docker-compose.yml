@@ -12,6 +12,7 @@ services:
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
       - LANGFUSE_HOST=http://langfuse:3000
       - MODO_DEFAULT=mock
+      - MOCK_CONNECTOR_SEED=${MOCK_CONNECTOR_SEED:-42}
     volumes:
       - ./app:/app/app
       - ./tests:/app/tests

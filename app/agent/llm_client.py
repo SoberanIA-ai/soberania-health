@@ -16,6 +16,19 @@ from app.config import settings
 PARSER_MODEL = "mistral-large-latest"
 GUARDRAIL_MODEL = "open-mistral-nemo"
 
+# Strings que indican que la "key" es un placeholder, no una key real.
+# Si la key cae en este set → mock mode (regla 5 sec 19).
+_PLACEHOLDERS = {
+    "", "your_key_here", "your-key-here", "changeme", "change-me",
+    "todo", "xxx", "none", "null",
+}
+
+
+def _es_placeholder(key: Optional[str]) -> bool:
+    if not key:
+        return True
+    return key.strip().lower() in _PLACEHOLDERS
+
 
 class LLMClient:
     """Cliente LLM unificado con fallback determinístico.
@@ -26,7 +39,7 @@ class LLMClient:
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key if api_key is not None else settings.mistral_api_key
-        self.use_mock = not bool(self.api_key)
+        self.use_mock = _es_placeholder(self.api_key)
         self._real_client = None
 
     @property

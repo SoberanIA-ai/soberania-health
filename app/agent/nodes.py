@@ -307,7 +307,11 @@ async def hitl_check(state: AuthorizationState) -> dict:
 async def enviar_solicitud(state: AuthorizationState) -> dict:
     """Envía la solicitud al portal de la aseguradora."""
     modo = state.get("modo") or settings.modo_default
-    connector = MockConnector(latencia_segundos=0)  # real connectors: Fase 2+
+    # seed configurable para demos reproducibles (regla 5 sec 19)
+    connector = MockConnector(
+        seed=settings.mock_connector_seed,
+        latencia_segundos=0,
+    )
     resultado = await connector.enviar(state["solicitud_generada"])
 
     return {
