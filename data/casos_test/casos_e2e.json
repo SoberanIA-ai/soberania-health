@@ -1,0 +1,425 @@
+{
+  "_documento": "30 casos E2E para Fase 5 del MVP. Todos en modo mock.",
+  "_data_status": "SIMULADO",
+  "_nota": "Adeslas y DKV tienen catálogos vacíos hasta Fase 0 con HM (sec 7.3 del handoff). Por safe-default (regla 4 sec 19), todas sus autorizaciones disparan HITL hasta que Isabella + HM rellenen los catálogos. Esto es el comportamiento correcto en MVP simulado.",
+  "casos": [
+    {
+      "id": "caso_001",
+      "descripcion": "Sanitas Más Salud Plus — RM rodilla derecha → autorizado",
+      "input": {
+        "orden_h17": "Paciente: María Ana García\nAseguradora: Sanitas\nPóliza: Más Salud Plus 987654\nProcedimiento: Resonancia magnética rodilla derecha\nMédico: Dr. Juan Traumatología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "sanitas",
+        "tipo_poliza": "mas_salud_plus",
+        "procedimiento_codigo": "SIM-001",
+        "requiere_autorizacion": true,
+        "cobertura_verificada": true,
+        "confidence_min": 0.85,
+        "hitl_requerido": false,
+        "estado_final": "autorizado"
+      }
+    },
+    {
+      "id": "caso_002",
+      "descripcion": "Sanitas Básica — TAC abdominal → autorizado",
+      "input": {
+        "orden_h17": "Paciente: Carlos López\nAseguradora: Sanitas\nPóliza: Básica 123456\nProcedimiento: TAC abdominal con contraste\nMédico: Dra. Ana Digestivo",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "sanitas",
+        "tipo_poliza": "basica",
+        "procedimiento_codigo": "SIM-002",
+        "requiere_autorizacion": true,
+        "cobertura_verificada": true,
+        "confidence_min": 0.85,
+        "hitl_requerido": false,
+        "estado_final": "autorizado"
+      }
+    },
+    {
+      "id": "caso_003",
+      "descripcion": "Sanitas Óptima — Cirugía ambulatoria rodilla → autorizado",
+      "input": {
+        "orden_h17": "Paciente: Laura Martín\nAseguradora: Sanitas\nPóliza: Óptima 765432\nProcedimiento: Cirugía ambulatoria de rodilla\nMédico: Dr. Pedro Cirugía",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "sanitas",
+        "tipo_poliza": "optima",
+        "procedimiento_codigo": "SIM-003",
+        "requiere_autorizacion": true,
+        "cobertura_verificada": true,
+        "confidence_min": 0.85,
+        "hitl_requerido": false,
+        "estado_final": "autorizado"
+      }
+    },
+    {
+      "id": "caso_004",
+      "descripcion": "Sanitas — procedimiento no en catálogo simulado → HITL safe default",
+      "input": {
+        "orden_h17": "Paciente: Pedro Ruiz\nAseguradora: Sanitas\nPóliza: Premium\nProcedimiento: Endoscopia digestiva alta\nMédico: Dr. Endoscopia",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "sanitas",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_005",
+      "descripcion": "Aseguradora ambigua/no soportada → HITL",
+      "input": {
+        "orden_h17": "Paciente: Sara Gómez\nAseguradora: Mapfre\nPóliza: Premium\nProcedimiento: RM rodilla derecha\nMédico: Dr. Traumatología",
+        "modo": "mock"
+      },
+      "expected": {
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_006",
+      "descripcion": "Sanitas Premium — RM rodilla pero póliza no mapeada → HITL safe default",
+      "input": {
+        "orden_h17": "Paciente: Elena Torres\nAseguradora: Sanitas\nPóliza: Premium\nProcedimiento: Resonancia magnética rodilla derecha\nMédico: Dr. Traumatología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "sanitas",
+        "tipo_poliza": "premium",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_007",
+      "descripcion": "Sanitas Básica — TAC abdominal urgente → autorizado urgente",
+      "input": {
+        "orden_h17": "Paciente: Juan Pérez\nAseguradora: Sanitas\nPóliza: Básica 222333\nProcedimiento: TAC abdominal con contraste URGENTE\nMédico: Dr. Urgencias",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "sanitas",
+        "tipo_poliza": "basica",
+        "procedimiento_codigo": "SIM-002",
+        "urgente": true,
+        "requiere_autorizacion": true,
+        "hitl_requerido": false,
+        "estado_final": "autorizado"
+      }
+    },
+    {
+      "id": "caso_008",
+      "descripcion": "Sanitas — sin médico (campo obligatorio) → HITL",
+      "input": {
+        "orden_h17": "Paciente: Marta Silva\nAseguradora: Sanitas\nPóliza: Más Salud Plus\nProcedimiento: RM rodilla derecha",
+        "modo": "mock"
+      },
+      "expected": {
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_009",
+      "descripcion": "Orden con sólo paciente — campos críticos faltantes → HITL",
+      "input": {
+        "orden_h17": "Paciente: Anónimo Sin Datos",
+        "modo": "mock"
+      },
+      "expected": {
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_010",
+      "descripcion": "Orden vacía / malformada → HITL controlado, sin error",
+      "input": {
+        "orden_h17": "",
+        "modo": "mock"
+      },
+      "expected": {
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_011",
+      "descripcion": "Adeslas Completa — RM cerebral → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Andrea Ruiz\nAseguradora: Adeslas\nPóliza: Completa 111222\nProcedimiento: Resonancia magnética cerebral\nMédico: Dr. Neurología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "tipo_poliza": "completa",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_012",
+      "descripcion": "Adeslas Básica — TAC tórax → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Roberto Vega\nAseguradora: Adeslas\nPóliza: Básica 333444\nProcedimiento: TAC tórax\nMédico: Dr. Neumología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "tipo_poliza": "basica",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_013",
+      "descripcion": "Adeslas Plena — RM rodilla → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Sofía Núñez\nAseguradora: Adeslas\nPóliza: Plena 555666\nProcedimiento: Resonancia magnética rodilla derecha\nMédico: Dr. Traumatología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "tipo_poliza": "plena",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_014",
+      "descripcion": "Adeslas Premium — Cirugía rodilla → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Manuel Diez\nAseguradora: Adeslas\nPóliza: Premium 777888\nProcedimiento: Cirugía de rodilla\nMédico: Dr. Cirugía",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "tipo_poliza": "premium",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_015",
+      "descripcion": "Adeslas Completa — TAC abdominal → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Carmen Ríos\nAseguradora: Adeslas\nPóliza: Completa\nProcedimiento: TAC abdominal con contraste\nMédico: Dr. Digestivo",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_016",
+      "descripcion": "Adeslas Básica — RM cerebral urgente → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Pablo Hernández\nAseguradora: Adeslas\nPóliza: Básica\nProcedimiento: Resonancia magnética cerebral URGENTE\nMédico: Dr. Neurología Urgencias",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "urgente": true,
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_017",
+      "descripcion": "Adeslas — procedimiento ambiguo → HITL",
+      "input": {
+        "orden_h17": "Paciente: Ana Sanz\nAseguradora: SegurCaixa Adeslas\nPóliza: Plena\nProcedimiento: Estudio especializado\nMédico: Dr. Especialista",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_018",
+      "descripcion": "Adeslas sin tipo de póliza → HITL",
+      "input": {
+        "orden_h17": "Paciente: Luis Castro\nAseguradora: Adeslas\nProcedimiento: RM cerebral\nMédico: Dr. Neurología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_019",
+      "descripcion": "Adeslas sin médico → HITL (campo obligatorio)",
+      "input": {
+        "orden_h17": "Paciente: Rocío Fernández\nAseguradora: Adeslas\nPóliza: Completa\nProcedimiento: TAC tórax",
+        "modo": "mock"
+      },
+      "expected": {
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_020",
+      "descripcion": "Adeslas — orden mínima → HITL",
+      "input": {
+        "orden_h17": "Adeslas. RM cerebral.",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "adeslas",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_021",
+      "descripcion": "DKV Integral — RM rodilla → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Beatriz Aparicio\nAseguradora: DKV\nPóliza: Integral 999000\nProcedimiento: Resonancia magnética rodilla derecha\nMédico: Dr. Traumatología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "integral",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_022",
+      "descripcion": "DKV Mundisalud — TAC abdominal → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Javier Soto\nAseguradora: DKV\nPóliza: Mundisalud 121212\nProcedimiento: TAC abdominal con contraste\nMédico: Dr. Digestivo",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "mundisalud",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_023",
+      "descripcion": "DKV Top — Cirugía rodilla → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Cristina Marín\nAseguradora: DKV Seguros\nPóliza: Top 343434\nProcedimiento: Cirugía ambulatoria de rodilla\nMédico: Dr. Cirugía",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "top",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_024",
+      "descripcion": "DKV Classica — RM cerebral → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: David Ortega\nAseguradora: DKV\nPóliza: Classica 565656\nProcedimiento: Resonancia magnética cerebral\nMédico: Dr. Neurología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "classica",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_025",
+      "descripcion": "DKV Salud — TAC tórax urgente → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Patricia Roldán\nAseguradora: DKV Salud\nPóliza: Integral\nProcedimiento: TAC tórax URGENTE\nMédico: Dr. Neumología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "integral",
+        "urgente": true,
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_026",
+      "descripcion": "DKV Top — RM rodilla → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Tomás Vidal\nAseguradora: DKV\nPóliza: Top\nProcedimiento: RM rodilla derecha\nMédico: Dr. Trauma",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "top",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_027",
+      "descripcion": "DKV — procedimiento desconocido → HITL",
+      "input": {
+        "orden_h17": "Paciente: Eva Herrero\nAseguradora: DKV\nPóliza: Mundisalud\nProcedimiento: Estudio cardiológico avanzado\nMédico: Dr. Cardiología",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_028",
+      "descripcion": "DKV Classica — TAC abdominal → HITL (catálogo vacío)",
+      "input": {
+        "orden_h17": "Paciente: Iván Pino\nAseguradora: DKV\nPóliza: Classica\nProcedimiento: TAC abdominal\nMédico: Dr. Digestivo",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "tipo_poliza": "classica",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_029",
+      "descripcion": "DKV sin póliza → HITL",
+      "input": {
+        "orden_h17": "Paciente: Lourdes Ramírez\nAseguradora: DKV\nProcedimiento: Cirugía rodilla\nMédico: Dr. Cirugía",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    },
+    {
+      "id": "caso_030",
+      "descripcion": "DKV — orden mínima → HITL",
+      "input": {
+        "orden_h17": "DKV. RM cerebral.",
+        "modo": "mock"
+      },
+      "expected": {
+        "aseguradora": "dkv",
+        "hitl_requerido": true,
+        "estado_final": "pendiente_hitl"
+      }
+    }
+  ]
+}

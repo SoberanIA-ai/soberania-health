@@ -41,7 +41,7 @@ class Autorizacion(Base):
     medico_id: Mapped[str | None] = mapped_column(String(100))
     medico_nombre: Mapped[str | None] = mapped_column(String(200))
     procedimiento_descripcion: Mapped[str | None] = mapped_column(Text)
-    procedimiento_cie10: Mapped[str | None] = mapped_column(String(20))
+    procedimiento_cie10: Mapped[str | None] = mapped_column(String(50))
     fecha_solicitud: Mapped[date | None] = mapped_column(Date)
     urgencia: Mapped[str] = mapped_column(String(20), default="normal")
 
@@ -90,7 +90,7 @@ class CodigoAseguradora(Base):
     )
     aseguradora: Mapped[str] = mapped_column(String(50), nullable=False)
     procedimiento_descripcion: Mapped[str] = mapped_column(Text, nullable=False)
-    cie10_codigo: Mapped[str | None] = mapped_column(String(20))
+    cie10_codigo: Mapped[str | None] = mapped_column(String(50))
     aseguradora_codigo: Mapped[str] = mapped_column(String(50), nullable=False)
     requiere_autorizacion: Mapped[bool] = mapped_column(Boolean, default=True)
     documentacion_requerida: Mapped[dict | None] = mapped_column(JSON)

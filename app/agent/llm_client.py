@@ -69,14 +69,17 @@ _POLIZAS_KEYWORDS = {
     "más salud plus": "mas_salud_plus",
     "mas_salud": "mas_salud",
     "más salud": "mas_salud",
+    "mundisalud": "mundisalud",
     "premium": "premium",
     "optima": "optima",
     "óptima": "optima",
     "completa": "completa",
-    "plena": "plena",
+    "classica": "classica",
     "integral": "integral",
+    "plena": "plena",
     "basica": "basica",
     "básica": "basica",
+    "top": "top",
 }
 
 _PROCEDIMIENTOS_KEYWORDS = [
@@ -220,7 +223,8 @@ def _extraer_medico_hl7(texto: str) -> Optional[str]:
 
 
 def _extraer_medico_libre(texto: str) -> Optional[str]:
-    match = re.search(r"(Dr\.?\s+[A-ZÁÉÍÓÚÑ][\w\s]+)", texto)
+    # Detecta "Dr.", "Dra.", "Dr ", "Dra " seguido del nombre
+    match = re.search(r"(Dra?\.?\s+[A-ZÁÉÍÓÚÑ][\w\sÁÉÍÓÚÑáéíóúñ]+)", texto)
     return match.group(1).strip() if match else None
 
 

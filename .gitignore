@@ -30,10 +30,10 @@ env/
 Thumbs.db
 
 # Data — nunca commitear datos reales o backups locales
+# Los códigos REALES de aseguradoras vienen de HM en Fase 0; jamás en git.
+# Los casos_test/ son inputs sintéticos para tests, sí van en git.
 data/codigos/*.json
 !data/codigos/.gitkeep
-data/casos_test/*.json
-!data/casos_test/.gitkeep
 *.db
 *.sqlite
 *.sqlite3

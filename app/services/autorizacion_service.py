@@ -138,7 +138,7 @@ class AutorizacionService:
         autorizacion.estado = final.get("estado", "error")
         autorizacion.confidence_score = final.get("confidence_score")
         autorizacion.aseguradora = final.get("aseguradora")
-        autorizacion.tipo_poliza = final.get("tipo_poliza")
+        autorizacion.poliza_tipo = final.get("tipo_poliza")
         autorizacion.procedimiento_codigo = final.get("procedimiento_codigo")
         autorizacion.requiere_autorizacion = final.get("requiere_autorizacion")
         autorizacion.cobertura_verificada = final.get("cobertura_verificada")
