@@ -2,14 +2,20 @@
 
 Sec 3.2 del handoff. Cada nodo recibe el estado completo y devuelve
 el delta a aplicar.
+
+audit_entries y errores usan Annotated[list, add] para que se acumulen
+automáticamente entre nodos (cada nodo añade su entrada, LangGraph las
+concatena). Sec 10 del handoff: trazabilidad completa por paso.
 """
-from typing import Literal, TypedDict
+from operator import add
+from typing import Annotated, Literal, TypedDict
 
 
 class AuthorizationState(TypedDict, total=False):
     # Input
     orden_raw: str
     modo: Literal["real", "mock"]
+    autorizacion_id: str  # UUID de la fila Autorizacion en DB (lo asigna el service)
 
     # Procesamiento (parser LLM + guardrail)
     datos_estructurados: dict
@@ -51,6 +57,6 @@ class AuthorizationState(TypedDict, total=False):
     numero_autorizacion: str
     solicitud_referencia: str
 
-    # Audit & errores
-    audit_entries: list[dict]
-    errores: list[str]
+    # Audit & errores — se acumulan entre nodos
+    audit_entries: Annotated[list[dict], add]
+    errores: Annotated[list[str], add]

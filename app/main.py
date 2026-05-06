@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import audit, autorizaciones, health
 
 app = FastAPI(
     title="SoberanIA Health",
@@ -9,3 +9,5 @@ app = FastAPI(
 )
 
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(autorizaciones.router, prefix="/api/v1")
+app.include_router(audit.router, prefix="/api/v1")

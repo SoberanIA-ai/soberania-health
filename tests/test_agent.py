@@ -58,9 +58,15 @@ async def test_caso_001_flujo_completo_aprobado(monkeypatch):
     assert final["numero_autorizacion"].startswith("AUTH-")
     assert final["solicitud_referencia"].startswith("MOCK-")
 
-    # Audit log poblado
-    assert len(final["audit_entries"]) == 1
-    assert final["audit_entries"][0]["accion"] == "autorizacion_procesada"
+    # Audit log poblado: una entrada por nodo del flujo
+    audit = final["audit_entries"]
+    acciones = [e["accion"] for e in audit]
+    assert "parse_orden_medica" in acciones
+    assert "verificar_cobertura" in acciones
+    assert "generar_solicitud" in acciones
+    assert "enviar_solicitud" in acciones
+    assert "procesar_respuesta" in acciones
+    assert "notificar_resultado" in acciones
 
 
 @pytest.mark.asyncio
@@ -120,11 +126,20 @@ async def test_audit_entry_contiene_modelo_y_confidence(monkeypatch):
         {"orden_raw": get_orden_ejemplo("ORD-001"), "modo": "mock"}
     )
 
-    entrada = final["audit_entries"][0]
-    assert entrada["modelo_usado"] == "mock"
-    assert 0.0 <= entrada["confidence_score"] <= 1.0
-    assert entrada["version_calculador"] == "1.0.0-simulado"
-    assert entrada["actor"] == "agente_autorizaciones"
+    # La entrada del parser registra modelo_usado="mock"
+    parse_entry = next(
+        e for e in final["audit_entries"] if e["accion"] == "parse_orden_medica"
+    )
+    assert parse_entry["modelo_usado"] == "mock"
+    assert 0.0 <= parse_entry["confidence_score"] <= 1.0
+    assert parse_entry["version_calculador"] == "1.0.0-simulado"
+    assert parse_entry["actor"] == "agente_parser_llm"
+
+    # Todas las entradas tienen los campos AI-Act compliant (sec 10)
+    for entry in final["audit_entries"]:
+        assert "actor" in entry
+        assert "version_calculador" in entry
+        assert "hitl_intervencion" in entry
 
 
 @pytest.mark.asyncio
