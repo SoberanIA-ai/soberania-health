@@ -73,6 +73,50 @@ class AutorizacionService:
             .all()
         )
 
+    def metricas(self) -> dict:
+        """Métricas agregadas para el dashboard.
+
+        - total: autorizaciones procesadas
+        - automatizadas: terminaron sin intervención humana
+        - pendientes_hitl: en cola HITL ahora mismo
+        - autorizadas / denegadas / con_hitl: desglose por estado
+        - tasa_automatizacion: porcentaje 0-1
+        """
+        total = self.db.query(Autorizacion).count()
+        pendientes = (
+            self.db.query(Autorizacion)
+            .filter(Autorizacion.hitl_requerido == True)  # noqa: E712
+            .filter(Autorizacion.hitl_decision.is_(None))
+            .count()
+        )
+        autorizadas = (
+            self.db.query(Autorizacion)
+            .filter(Autorizacion.estado == "autorizado")
+            .count()
+        )
+        denegadas = (
+            self.db.query(Autorizacion)
+            .filter(Autorizacion.estado == "denegado")
+            .count()
+        )
+        # Automatizadas = procesadas sin haber requerido HITL
+        automatizadas = (
+            self.db.query(Autorizacion)
+            .filter(Autorizacion.hitl_requerido == False)  # noqa: E712
+            .count()
+        )
+        con_hitl = total - automatizadas
+
+        return {
+            "total": total,
+            "automatizadas": automatizadas,
+            "con_hitl": con_hitl,
+            "pendientes_hitl": pendientes,
+            "autorizadas": autorizadas,
+            "denegadas": denegadas,
+            "tasa_automatizacion": (automatizadas / total) if total > 0 else 0.0,
+        }
+
     def aplicar_decision_hitl(
         self,
         autorizacion_id: UUID | str,

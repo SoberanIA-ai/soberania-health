@@ -44,6 +44,13 @@ async def listar_pendientes_hitl(db: Session = Depends(get_db)):
     return service.listar_pendientes_hitl()
 
 
+@router.get("/metricas")
+async def obtener_metricas(db: Session = Depends(get_db)) -> dict:
+    """Métricas agregadas para el dashboard."""
+    service = AutorizacionService(db)
+    return service.metricas()
+
+
 @router.get("/{autorizacion_id}", response_model=AutorizacionDetalleResponse)
 async def obtener_autorizacion(
     autorizacion_id: UUID,
