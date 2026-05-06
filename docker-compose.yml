@@ -21,6 +21,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       - ./pytest.ini:/app/pytest.ini
       - ./scripts:/app/scripts
+      - ./dashboard:/app/dashboard
     depends_on:
       db:
         condition: service_healthy
@@ -36,7 +37,7 @@ services:
       - ./dashboard:/app/dashboard
     depends_on:
       - api
-    command: streamlit run dashboard/hitl_dashboard.py --server.address=0.0.0.0 --server.port=8501
+    command: streamlit run dashboard/hitl_dashboard_streamlit.py --server.address=0.0.0.0 --server.port=8501
 
   db:
     image: postgres:16-alpine
