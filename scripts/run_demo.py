@@ -27,6 +27,7 @@ DASHBOARD_BASE = os.environ.get(
 
 
 CASOS_DEMO = [
+    # ─── Casos originales (1-3) ──────────────────────────────────
     {
         "id": "demo_1",
         "titulo": "Caso 1 — Happy path completo",
@@ -77,6 +78,148 @@ CASOS_DEMO = [
             "Paciente: Pedro Anónimo\n"
             "Aseguradora: Sanitas\n"
             "Procedimiento: Cirugía ambulatoria de rodilla"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+
+    # ─── Casos adicionales (4-11) — escenarios reales ───────────
+    {
+        "id": "demo_4",
+        "titulo": "Caso 4 — Sanitas TAC abdominal → autorizado",
+        "narrativa": (
+            "TAC abdominal con contraste sobre póliza Sanitas Básica. "
+            "El procedimiento está en el catálogo (SIM-002), cobertura "
+            "confirmada, solicitud enviada y aprobada por el conector mock."
+        ),
+        "orden": (
+            "Paciente: Carlos López Hernández\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Básica 4471201\n"
+            "Procedimiento: TAC abdominal con contraste\n"
+            "Médico: Dr. Sergio Ramírez Aparato Digestivo"
+        ),
+        "esperado": "autorizado",
+    },
+    {
+        "id": "demo_5",
+        "titulo": "Caso 5 — Sanitas cirugía rodilla URGENTE → autorizado",
+        "narrativa": (
+            "Cirugía ambulatoria de rodilla, póliza Óptima, marcada como "
+            "URGENTE. El parser LLM detecta la urgencia, plazos_respuesta.py "
+            "le aplica SLA reducido (4h Sanitas), el conector mock aprueba."
+        ),
+        "orden": (
+            "Paciente: Roberto Vega Aznar\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Óptima 7724118\n"
+            "Procedimiento: Cirugía ambulatoria de rodilla URGENTE\n"
+            "Médico: Dra. Marta Soler Traumatología"
+        ),
+        "esperado": "autorizado",
+    },
+    {
+        "id": "demo_6",
+        "titulo": "Caso 6 — Adeslas TAC tórax → HITL (catálogo vacío)",
+        "narrativa": (
+            "TAC tórax con póliza Adeslas Básica. El catálogo de Adeslas "
+            "está vacío (DATA_STATUS=SIMULADO hasta Fase 0 con HM), así "
+            "que el verificador de cobertura aplica safe-default y escala "
+            "a revisión humana."
+        ),
+        "orden": (
+            "Paciente: Sofía Núñez Castillo\n"
+            "Aseguradora: Adeslas\n"
+            "Póliza: Básica 8893012\n"
+            "Procedimiento: TAC tórax\n"
+            "Médico: Dr. Andrés Gallego Neumología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_7",
+        "titulo": "Caso 7 — Adeslas cirugía cadera URGENTE → HITL",
+        "narrativa": (
+            "Cirugía de cadera urgente. La aseguradora se identifica "
+            "(Adeslas) pero el procedimiento no está en el mock heuristic "
+            "y el catálogo Adeslas está vacío. Doble safe-default: "
+            "confidence baja + sin código → HITL urgente."
+        ),
+        "orden": (
+            "Paciente: Manuel Diez Ramos\n"
+            "Aseguradora: Adeslas\n"
+            "Póliza: Premium 5566778\n"
+            "Procedimiento: Cirugía de cadera URGENTE\n"
+            "Médico: Dr. Ramón Castellanos Traumatología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_8",
+        "titulo": "Caso 8 — DKV resonancia columna → HITL (catálogo vacío)",
+        "narrativa": (
+            "RM columna lumbar con DKV Integral. Catálogo DKV vacío hasta "
+            "Fase 0 con HM (DKV tiene acuerdo activo confirmado). Como el "
+            "procedimiento no está mapeado, el sistema escala a revisión."
+        ),
+        "orden": (
+            "Paciente: Cristina Marín Ortega\n"
+            "Aseguradora: DKV\n"
+            "Póliza: Integral 9988776\n"
+            "Procedimiento: Resonancia magnética columna lumbar\n"
+            "Médico: Dra. Pilar Vázquez Neurología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_9",
+        "titulo": "Caso 9 — DKV TAC cerebral URGENTE → HITL urgente",
+        "narrativa": (
+            "TAC cerebral urgente con DKV Top. Catálogo DKV vacío. Aunque "
+            "es urgente, el sistema NO envía a ciegas — la regla del "
+            "principio fundamental se cumple: el LLM nunca decide códigos "
+            "sin que el calculador Python lo confirme."
+        ),
+        "orden": (
+            "Paciente: Patricia Roldán Esteve\n"
+            "Aseguradora: DKV\n"
+            "Póliza: Top 4433221\n"
+            "Procedimiento: TAC cerebral URGENTE\n"
+            "Médico: Dr. Tomás Iglesias Neurología Urgencias"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_10",
+        "titulo": "Caso 10 — Sanitas sin tipo de póliza → HITL",
+        "narrativa": (
+            "Orden Sanitas con paciente, médico y procedimiento, pero el "
+            "tipo de póliza no aparece. El guardrail detecta el campo "
+            "obligatorio faltante (paciente_tipo_poliza), confidence baja "
+            "a 0.75 — por debajo del umbral 0.80 → HITL."
+        ),
+        "orden": (
+            "Paciente: Javier Soto Ferreira\n"
+            "Aseguradora: Sanitas\n"
+            "Procedimiento: Resonancia magnética rodilla derecha\n"
+            "Médico: Dr. Luis Cano Traumatología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_11",
+        "titulo": "Caso 11 — Mapfre (no soportada) → HITL",
+        "narrativa": (
+            "Aseguradora Mapfre. El identificador_aseguradora.py sólo "
+            "reconoce Sanitas, Adeslas y DKV (alcance MVP sec 2.2). Mapfre "
+            "se trata como aseguradora desconocida → safe-default a HITL. "
+            "Asisa, Mapfre y resto vendrán post-piloto con HM."
+        ),
+        "orden": (
+            "Paciente: Lucía Mateo Cabrera\n"
+            "Aseguradora: Mapfre\n"
+            "Póliza: Salud 1122334\n"
+            "Procedimiento: Resonancia magnética rodilla derecha\n"
+            "Médico: Dra. Beatriz Sanchís Traumatología"
         ),
         "esperado": "pendiente_hitl",
     },
