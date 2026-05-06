@@ -17,7 +17,11 @@ from sqlalchemy.orm import Session
 
 from app.agent.graph import get_grafo
 from app.models.autorizacion import Autorizacion
-from app.utils.audit_log import AuditLogger
+from app.utils.audit_log import AuditLogger, construir_entrada
+
+
+class HitlDecisionError(Exception):
+    """Errores al aplicar decisión HITL."""
 
 
 class AutorizacionService:
@@ -68,6 +72,62 @@ class AutorizacionService:
             .order_by(Autorizacion.created_at.desc())
             .all()
         )
+
+    def aplicar_decision_hitl(
+        self,
+        autorizacion_id: UUID | str,
+        decision: str,
+        revisor: str,
+        notas: str | None = None,
+    ) -> Autorizacion:
+        """Aplica una decisión humana (aprobar/rechazar/mas_info) a una autorización
+        que está en cola HITL.
+
+        - aprobar: estado → aprobado_hitl (supervisor valida; reenvío manual)
+        - rechazar: estado → rechazado_hitl
+        - mas_info: estado → informacion_adicional_requerida
+
+        Añade audit entry con hitl_intervencion=True.
+
+        Levanta HitlDecisionError si la autorización no existe, ya tiene
+        decisión, o no estaba en pendiente_hitl.
+        """
+        autorizacion = self.obtener(autorizacion_id)
+        if autorizacion is None:
+            raise HitlDecisionError("autorizacion_no_encontrada")
+        if autorizacion.hitl_decision is not None:
+            raise HitlDecisionError("ya_decidido")
+        if not autorizacion.hitl_requerido:
+            raise HitlDecisionError("no_requiere_hitl")
+
+        estado_previo = autorizacion.estado
+        nuevo_estado = {
+            "aprobar": "aprobado_hitl",
+            "rechazar": "rechazado_hitl",
+            "mas_info": "informacion_adicional_requerida",
+        }[decision]
+
+        autorizacion.hitl_decision = decision
+        autorizacion.hitl_revisor = revisor
+        autorizacion.hitl_notas = notas
+        autorizacion.hitl_revisado_at = datetime.now(timezone.utc)
+        autorizacion.estado = nuevo_estado
+
+        entry = construir_entrada(
+            autorizacion_id=str(autorizacion.id),
+            accion=f"hitl_{decision}",
+            actor=f"hitl_supervisor:{revisor}",
+            datos_entrada={"estado_previo": estado_previo},
+            datos_salida={"estado": nuevo_estado, "notas": notas},
+            confidence=1.0,  # decisión humana — confianza máxima
+            modelo_usado="hitl_human",
+            hitl_intervencion=True,
+        )
+        self.audit_logger.persistir_cadena(str(autorizacion.id), [entry])
+
+        self.db.commit()
+        self.db.refresh(autorizacion)
+        return autorizacion
 
     @staticmethod
     def _aplicar_resultado(autorizacion: Autorizacion, final: dict) -> None:

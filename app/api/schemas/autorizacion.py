@@ -82,6 +82,12 @@ class AuditEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class HitlDecisionRequest(BaseModel):
+    decision: Literal["aprobar", "rechazar", "mas_info"]
+    notas: Optional[str] = None
+    revisor: str = "anonimo"
+
+
 class AuditLogResponse(BaseModel):
     autorizacion_id: UUID
     total_entries: int

@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 from app.api.schemas.autorizacion import (
     AutorizacionDetalleResponse,
     AutorizacionResumenResponse,
+    HitlDecisionRequest,
     ProcesarAutorizacionRequest,
 )
 from app.models.database import get_db
-from app.services.autorizacion_service import AutorizacionService
+from app.services.autorizacion_service import AutorizacionService, HitlDecisionError
 
 router = APIRouter(prefix="/autorizaciones", tags=["autorizaciones"])
 
@@ -53,3 +54,31 @@ async def obtener_autorizacion(
     if not autorizacion:
         raise HTTPException(status_code=404, detail="Autorización no encontrada")
     return autorizacion
+
+
+@router.post("/{autorizacion_id}/hitl", response_model=AutorizacionDetalleResponse)
+async def aplicar_decision_hitl(
+    autorizacion_id: UUID,
+    payload: HitlDecisionRequest,
+    db: Session = Depends(get_db),
+):
+    """Registra la decisión humana (aprobar / rechazar / mas_info) de una
+    autorización en cola HITL.
+
+    Audit log registra la intervención humana con hash encadenado.
+    """
+    service = AutorizacionService(db)
+    try:
+        return service.aplicar_decision_hitl(
+            autorizacion_id=autorizacion_id,
+            decision=payload.decision,
+            revisor=payload.revisor,
+            notas=payload.notas,
+        )
+    except HitlDecisionError as exc:
+        codigo = str(exc)
+        if codigo == "autorizacion_no_encontrada":
+            raise HTTPException(status_code=404, detail=codigo)
+        if codigo == "ya_decidido":
+            raise HTTPException(status_code=409, detail=codigo)
+        raise HTTPException(status_code=400, detail=codigo)
