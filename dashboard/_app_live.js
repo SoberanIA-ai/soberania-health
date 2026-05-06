@@ -492,7 +492,300 @@ const enrichItem = (item, audit) => {
   return { ...item, flujo, audit: auditRows };
 };
 
+// ─── Pestaña Auditoría AI Act ───────────────────────────────────
+//
+// Vista secundaria (no visible para back-office, solo accesible desde
+// el selector ViewTabs). Lista TODAS las autorizaciones — no solo las
+// pendientes — y para cada una muestra el reporte AI Act completo
+// devuelto por GET /api/v1/audit/{id}/aiact-report.
+// Reglas:
+//   - 🤖 LLM · 🐍 Python puro · 🧑 Humano (icono por tipo de actor)
+//   - SHA256 banner verde si íntegro, rojo si comprometido
+//   - Botón "Exportar JSON" descarga el reporte completo
+//   - Métricas compliance: % supervisión, % contradicciones, tiempo medio
+
+function ViewTabs({ vista, onChange }) {
+  const tabs = [
+    { id: 'hitl', label: 'Cola HITL' },
+    { id: 'auditoria', label: 'Auditoría AI Act' },
+  ];
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 0,
+      padding: '0 24px',
+      background: 'var(--bg, #fff)',
+      borderBottom: '1px solid var(--border, #e4e8ee)',
+    }}>
+      {tabs.map(t => {
+        const active = vista === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            style={{
+              padding: '12px 18px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: active ? '2px solid #1B4F8A' : '2px solid transparent',
+              color: active ? '#1B4F8A' : '#6b7280',
+              fontWeight: active ? 600 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReporteAIAct({ report, onExport }) {
+  const a = report.autorizacion;
+  const tipoIcon = { llm: '🤖', python: '🐍', hitl: '🧑' };
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,gap:12}}>
+        <div>
+          <div style={{fontSize:11,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5,fontWeight:600}}>Reporte AI Act</div>
+          <div style={{fontSize:14,fontWeight:600,marginTop:4}}>{a.paciente_nombre || '(sin nombre)'}</div>
+          <div style={{fontSize:11,color:'#9ca3af',fontFamily:'ui-monospace,monospace',marginTop:2}}>{a.id}</div>
+        </div>
+        <button onClick={onExport} style={{
+          padding:'8px 14px',background:'#1B4F8A',color:'#fff',
+          border:'none',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:500,
+          whiteSpace:'nowrap',
+        }}>↓ Exportar JSON</button>
+      </div>
+
+      <section style={{marginBottom:18}}>
+        <div style={{textTransform:'uppercase',fontSize:10,color:'#6b7280',marginBottom:8,fontWeight:600,letterSpacing:0.5}}>Datos del paciente y orden</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,fontSize:12}}>
+          <div><span style={{color:'#6b7280'}}>Paciente:</span> {a.paciente_nombre || '—'}</div>
+          <div><span style={{color:'#6b7280'}}>Aseguradora:</span> {a.aseguradora || '—'}</div>
+          <div><span style={{color:'#6b7280'}}>Médico:</span> {a.medico_nombre || '—'}</div>
+          <div><span style={{color:'#6b7280'}}>Procedimiento:</span> {a.procedimiento_descripcion || '—'}</div>
+          <div><span style={{color:'#6b7280'}}>CIE-10:</span> {a.procedimiento_cie10 || '—'}</div>
+          <div><span style={{color:'#6b7280'}}>Código aseguradora:</span> {a.procedimiento_codigo || '—'}</div>
+          <div><span style={{color:'#6b7280'}}>Estado final:</span> <strong>{a.estado_final}</strong></div>
+          <div><span style={{color:'#6b7280'}}>Tiempo total:</span> {a.tiempo_total_segundos != null ? `${a.tiempo_total_segundos}s` : '—'}</div>
+        </div>
+      </section>
+
+      <section style={{marginBottom:18}}>
+        <div style={{textTransform:'uppercase',fontSize:10,color:'#6b7280',marginBottom:8,fontWeight:600,letterSpacing:0.5}}>
+          Pasos del agente · {report.audit.total_pasos}
+        </div>
+        {report.audit.pasos.map((p, i) => (
+          <div key={i} style={{
+            padding:'10px 12px',
+            borderLeft: '3px solid ' + (p.tipo === 'hitl' ? '#b56a0a' : p.tipo === 'llm' ? '#1B4F8A' : '#1f7a4d'),
+            marginBottom:6,
+            background:'#f9fafb',
+            borderRadius:'0 4px 4px 0',
+            fontSize:12,
+          }}>
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
+              <span style={{fontSize:14}}>{tipoIcon[p.tipo] || '?'}</span>
+              <strong>{p.accion}</strong>
+              <span style={{color:'#6b7280',fontSize:11}}>{p.actor}</span>
+              <span style={{marginLeft:'auto',fontFamily:'ui-monospace,monospace',color:'#6b7280',fontSize:11}}>
+                {p.timestamp ? p.timestamp.slice(11, 19) : '—'}
+              </span>
+            </div>
+            <div style={{color:'#374151',fontSize:11,marginBottom:6,lineHeight:1.5}}>
+              {p.razon_decision || '—'}
+            </div>
+            <div style={{display:'flex',gap:12,fontSize:10,color:'#9ca3af',fontFamily:'ui-monospace,monospace',flexWrap:'wrap'}}>
+              <span>modelo: {p.modelo_version || '—'}</span>
+              <span>modo: {p.modo_inferencia || '—'}</span>
+              {p.confidence_score != null && <span>conf: {p.confidence_score.toFixed(2)}</span>}
+              <span>sha256: {(p.hash_sha256 || '').slice(0, 16)}…</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {report.intervencion_humana && (
+        <section style={{marginBottom:18,padding:12,background:'#fef9e7',borderRadius:6,border:'1px solid #f3d869'}}>
+          <div style={{textTransform:'uppercase',fontSize:10,color:'#6b7280',marginBottom:8,fontWeight:600,letterSpacing:0.5}}>
+            Intervención humana 🧑
+          </div>
+          <div style={{fontSize:12,display:'grid',gap:4}}>
+            <div><span style={{color:'#6b7280'}}>Revisor:</span> <strong>{report.intervencion_humana.revisor}</strong></div>
+            <div><span style={{color:'#6b7280'}}>Decisión:</span> <strong>{report.intervencion_humana.decision}</strong></div>
+            <div><span style={{color:'#6b7280'}}>Tiempo en cola:</span> {report.intervencion_humana.tiempo_en_cola_segundos}s</div>
+            <div>
+              <span style={{color:'#6b7280'}}>Coincide con agente:</span>{' '}
+              {report.intervencion_humana.coincide_con_agente
+                ? <span style={{color:'#1f7a4d',fontWeight:600}}>✓ Sí</span>
+                : <span style={{color:'#c8323a',fontWeight:600}}>✗ NO — humano contradijo</span>}
+            </div>
+            {report.intervencion_humana.notas && (
+              <div><span style={{color:'#6b7280'}}>Notas:</span> {report.intervencion_humana.notas}</div>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section style={{padding:12,background: report.audit.integro ? '#ecfdf5' : '#fef2f2',borderRadius:6,fontSize:12,border: '1px solid '+(report.audit.integro ? '#a7f3d0' : '#fecaca')}}>
+        <div style={{display:'flex',gap:12,alignItems:'center'}}>
+          <span style={{fontSize:18}}>{report.audit.integro ? '🔒' : '⚠️'}</span>
+          <div>
+            <strong style={{color: report.audit.integro ? '#1f7a4d' : '#c8323a'}}>
+              {report.audit.integro ? 'AI Act compliant — cadena SHA-256 íntegra' : 'INTEGRIDAD COMPROMETIDA'}
+            </strong>
+            <div style={{color:'#6b7280',marginTop:2,fontSize:11}}>
+              Calculadores: {report.compliance.calculadores_version} · DATA_STATUS: {report.compliance.data_status}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AuditoriaView() {
+  const [todas, setTodas] = useState([]);
+  const [metricas, setMetricas] = useState(null);
+  const [reportSel, setReportSel] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const refresh = async () => {
+    try {
+      const [a, m] = await Promise.all([
+        fetch('/api/v1/autorizaciones/').then(r => r.json()),
+        fetch('/api/v1/autorizaciones/metricas-aiact').then(r => r.json()),
+      ]);
+      setTodas(a);
+      setMetricas(m);
+    } catch (e) {
+      console.warn('audit refresh failed:', e);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 15000);
+    return () => clearInterval(t);
+  }, []);
+
+  const cargarReporte = async (id) => {
+    setSelectedId(id);
+    try {
+      const r = await fetch(`/api/v1/audit/${id}/aiact-report`).then(r => r.json());
+      setReportSel(r);
+    } catch (e) {
+      console.warn('report fetch failed:', e);
+    }
+  };
+
+  const exportarJSON = () => {
+    if (!reportSel) return;
+    const blob = new Blob([JSON.stringify(reportSel, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aiact-report-${reportSel.autorizacion.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{padding:24,display:'flex',flexDirection:'column',gap:16}}>
+      <div style={{
+        display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:12,
+        padding:16,background:'#fff',border:'1px solid #e4e8ee',borderRadius:8,
+      }}>
+        {!metricas ? <div style={{gridColumn:'span 3',color:'#6b7280'}}>Cargando métricas…</div> : (
+          <>
+            <div>
+              <div style={{fontSize:10,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5,fontWeight:600}}>% supervisión humana</div>
+              <div style={{fontSize:28,fontWeight:700,marginTop:4}}>{Math.round((metricas.porcentaje_supervision || 0) * 100)}%</div>
+              <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{metricas.con_supervision_humana} de {metricas.total_autorizaciones} autorizaciones</div>
+            </div>
+            <div>
+              <div style={{fontSize:10,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5,fontWeight:600}}>% humano contradijo agente</div>
+              <div style={{fontSize:28,fontWeight:700,marginTop:4}}>{Math.round((metricas.porcentaje_contradicciones || 0) * 100)}%</div>
+              <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{metricas.humano_contradijo_agente} de {metricas.decisiones_humanas_registradas} decisiones</div>
+            </div>
+            <div>
+              <div style={{fontSize:10,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5,fontWeight:600}}>Tiempo medio revisión</div>
+              <div style={{fontSize:28,fontWeight:700,marginTop:4}}>
+                {metricas.tiempo_medio_revision_segundos != null
+                  ? `${metricas.tiempo_medio_revision_segundos.toFixed(1)}s`
+                  : '—'}
+              </div>
+              <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>tiempo en cola HITL</div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'380px 1fr',gap:16,minHeight:500}}>
+        <div style={{background:'#fff',border:'1px solid #e4e8ee',borderRadius:8,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+          <div style={{padding:'12px 16px',borderBottom:'1px solid #e4e8ee',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <strong style={{fontSize:13}}>Todas las autorizaciones</strong>
+            <span style={{color:'#6b7280',fontSize:12}}>{todas.length}</span>
+          </div>
+          <div style={{flex:1,overflowY:'auto',maxHeight:600}}>
+            {todas.length === 0 ? (
+              <div style={{padding:20,textAlign:'center',color:'#9ca3af',fontSize:12}}>
+                Sin autorizaciones todavía
+              </div>
+            ) : todas.map(a => {
+              const sel = selectedId === a.id;
+              const estadoColor = {
+                autorizado: '#1f7a4d',
+                aprobado_hitl: '#1f7a4d',
+                rechazado_hitl: '#c8323a',
+                denegado: '#c8323a',
+                pendiente_hitl: '#b56a0a',
+                informacion_adicional_requerida: '#b56a0a',
+              }[a.estado] || '#6b7280';
+              return (
+                <div key={a.id}
+                  onClick={() => cargarReporte(a.id)}
+                  style={{
+                    padding:'10px 16px',
+                    borderBottom:'1px solid #f3f4f6',
+                    cursor:'pointer',
+                    background: sel ? '#eef2ff' : 'transparent',
+                  }}>
+                  <div style={{fontSize:13,fontWeight:500}}>{a.paciente_nombre || '(sin nombre)'}</div>
+                  <div style={{fontSize:11,color:'#6b7280',marginTop:2,display:'flex',gap:6,flexWrap:'wrap'}}>
+                    <span>{(a.aseguradora || '—').toUpperCase()}</span>
+                    <span>·</span>
+                    <span style={{color: estadoColor, fontWeight:500}}>{a.estado}</span>
+                    {a.hitl_revisor && <><span>·</span><span style={{color:'#b56a0a'}}>🧑 {a.hitl_revisor}</span></>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{background:'#fff',border:'1px solid #e4e8ee',borderRadius:8,padding:20,overflowY:'auto',maxHeight:800}}>
+          {!reportSel ? (
+            <div style={{color:'#9ca3af',textAlign:'center',padding:60,fontSize:13}}>
+              Selecciona una autorización para ver su reporte AI Act completo
+            </div>
+          ) : (
+            <ReporteAIAct report={reportSel} onExport={exportarJSON} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
+  const [vista, setVista] = useState('hitl');  // 'hitl' | 'auditoria'
   const [data, setData] = useState({ procesadas: 0, automatizadas: 0, tiempoMedio: 14.3 });
   const [items, setItems] = useState([]);
   const [resolved, setResolved] = useState(new Set());
@@ -592,11 +885,18 @@ function App() {
   return (
     <div className="app">
       <Header />
-      <Metrics data={data} pendientes={visible.length} />
-      <div className="main">
-        <Queue items={items} selectedId={selectedId} onSelect={setSelectedId} resolved={resolved} />
-        <Detail item={enriched} onAction={handleAction} />
-      </div>
+      <ViewTabs vista={vista} onChange={setVista} />
+      {vista === 'hitl' ? (
+        <>
+          <Metrics data={data} pendientes={visible.length} />
+          <div className="main">
+            <Queue items={items} selectedId={selectedId} onSelect={setSelectedId} resolved={resolved} />
+            <Detail item={enriched} onAction={handleAction} />
+          </div>
+        </>
+      ) : (
+        <AuditoriaView />
+      )}
       <Footer />
       <Toasts toasts={toasts} />
     </div>

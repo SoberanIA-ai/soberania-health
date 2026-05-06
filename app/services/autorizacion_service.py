@@ -73,6 +73,14 @@ class AutorizacionService:
             .all()
         )
 
+    def listar_todas(self, limit: int = 200) -> list[Autorizacion]:
+        return (
+            self.db.query(Autorizacion)
+            .order_by(Autorizacion.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
     def metricas(self) -> dict:
         """Métricas agregadas para el dashboard.
 
@@ -151,18 +159,59 @@ class AutorizacionService:
             "mas_info": "informacion_adicional_requerida",
         }[decision]
 
+        ahora = datetime.now(timezone.utc)
+        # Postgres devuelve datetimes con tzinfo=UTC; los hacemos comparables
+        creado = autorizacion.created_at
+        if creado.tzinfo is None:
+            creado = creado.replace(tzinfo=timezone.utc)
+        tiempo_en_cola_segundos = round((ahora - creado).total_seconds(), 2)
+
+        # ¿Coincide con la recomendación del agente?
+        # El agente "recomendaba aprobar" si: cobertura verificada + requiere
+        # autorización + confidence ≥ 0.5 (no rechaza categóricamente).
+        # Si humano aprueba y agente recomendaba → coincide.
+        # Si humano rechaza y agente NO recomendaba → coincide.
+        agente_recomendaba_aprobar = bool(
+            autorizacion.cobertura_verificada
+            and autorizacion.requiere_autorizacion
+            and (autorizacion.confidence_score or 0) >= 0.5
+        )
+        humano_aprueba = decision == "aprobar"
+        coincide_con_agente = humano_aprueba == agente_recomendaba_aprobar
+
         autorizacion.hitl_decision = decision
         autorizacion.hitl_revisor = revisor
         autorizacion.hitl_notas = notas
-        autorizacion.hitl_revisado_at = datetime.now(timezone.utc)
+        autorizacion.hitl_revisado_at = ahora
         autorizacion.estado = nuevo_estado
+
+        razon_decision = (
+            f"Decisión humana: {decision}. "
+            f"Agente recomendaba {'aprobar' if agente_recomendaba_aprobar else 'no_aprobar'}. "
+            f"{'Coincide' if coincide_con_agente else 'Contradice'} al agente. "
+            f"Tiempo en cola: {tiempo_en_cola_segundos:.1f}s."
+        )
 
         entry = construir_entrada(
             autorizacion_id=str(autorizacion.id),
             accion=f"hitl_{decision}",
             actor=f"hitl_supervisor:{revisor}",
-            datos_entrada={"estado_previo": estado_previo},
-            datos_salida={"estado": nuevo_estado, "notas": notas},
+            datos_entrada={
+                "estado_previo": estado_previo,
+                "agente_recomendaba": "aprobar" if agente_recomendaba_aprobar else "no_aprobar",
+                "confidence_agente": float(autorizacion.confidence_score or 0),
+            },
+            datos_salida={
+                "estado": nuevo_estado,
+                "razon_decision": razon_decision,
+                "revisor_nombre": revisor,
+                "decision_humana": decision,
+                "coincide_con_agente": coincide_con_agente,
+                "notas_revisor": notas or "",
+                "tiempo_en_cola_segundos": tiempo_en_cola_segundos,
+                "modelo_version": "hitl-human-v1",
+                "modo_inferencia": "human",
+            },
             confidence=1.0,  # decisión humana — confianza máxima
             modelo_usado="hitl_human",
             hitl_intervencion=True,

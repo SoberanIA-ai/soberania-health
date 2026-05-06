@@ -25,6 +25,19 @@ from app.utils.notifications import notificar_recepcion
 
 _llm: LLMClient | None = None
 
+# Identificadores de modelo para trazabilidad AI Act (sec 10 + Reg. EU AI Act)
+MOCK_HEURISTIC_VERSION = "mock-heuristic-v1"
+LLM_PARSER_VERSION = f"{PARSER_MODEL}+{GUARDRAIL_MODEL}"
+
+# Campos obligatorios mínimos que el guardrail valida (también usados aquí
+# para enumerar campos faltantes en el audit log).
+CAMPOS_OBLIGATORIOS_PARSER = (
+    "paciente_nombre",
+    "paciente_aseguradora",
+    "procedimiento_descripcion",
+    "medico_nombre",
+)
+
 
 def get_llm_client() -> LLMClient:
     """Singleton lazy del LLM client. Permite override en tests."""
@@ -38,6 +51,13 @@ def set_llm_client(client: LLMClient) -> None:
     """Inyecta un cliente LLM (útil en tests)."""
     global _llm
     _llm = client
+
+
+def _modelo_e_inferencia(client: LLMClient) -> tuple[str, str]:
+    """(modelo_version, modo_inferencia) para audit AI Act."""
+    if client.use_mock:
+        return (MOCK_HEURISTIC_VERSION, "mock")
+    return (LLM_PARSER_VERSION, "real")
 
 
 def _modelo_actor(es_llm: bool, nombre_actor: str) -> tuple[str, str]:
@@ -86,6 +106,16 @@ async def parse_orden_medica(state: AuthorizationState) -> dict:
     datos = await client.parse_orden_medica(texto)
     validacion = await client.validar_guardrail(datos)
 
+    campos_extraidos = {k: v for k, v in datos.items() if v not in (None, "", [])}
+    campos_faltantes = [c for c in CAMPOS_OBLIGATORIOS_PARSER if not datos.get(c)]
+    modelo_version, modo_inferencia = _modelo_e_inferencia(client)
+
+    razon_decision = (
+        f"Extraídos {len(campos_extraidos)} campos del texto clínico. "
+        f"Obligatorios faltantes: {', '.join(campos_faltantes) if campos_faltantes else 'ninguno'}. "
+        f"Confidence guardrail {validacion['confidence']:.2f}."
+    )
+
     delta = {
         "datos_estructurados": datos,
         "confidence_score": validacion["confidence"],
@@ -93,20 +123,26 @@ async def parse_orden_medica(state: AuthorizationState) -> dict:
         "razon_hitl": validacion.get("razon_hitl", ""),
         "estado": "parseado",
     }
-    modelo = "mock" if client.use_mock else f"{PARSER_MODEL}+{GUARDRAIL_MODEL}"
     delta["audit_entries"] = [
         _entry(
             state,
             accion="parse_orden_medica",
             actor="agente_parser_llm",
-            datos_entrada={"orden_raw": orden_raw[:500]},
+            datos_entrada={
+                "orden_original": orden_raw,
+                "campos_extraidos": campos_extraidos,
+                "campos_faltantes": campos_faltantes,
+            },
             datos_salida={
                 "estado": "parseado",
                 "datos_estructurados": datos,
                 "validacion": validacion,
+                "razon_decision": razon_decision,
+                "modelo_version": modelo_version,
+                "modo_inferencia": modo_inferencia,
             },
             confidence_score=validacion["confidence"],
-            modelo_usado=modelo,
+            modelo_usado=modelo_version,
         )
     ]
     return delta
@@ -146,6 +182,25 @@ async def verificar_cobertura(state: AuthorizationState) -> dict:
         "hitl_requerido": hitl,
         "estado": "verificado",
     }
+
+    if canonical is None:
+        razon_decision = (
+            f"Aseguradora '{aseguradora_raw}' NO soportada por el MVP. "
+            f"Safe-default → HITL."
+        )
+    elif not cubierto:
+        razon_decision = (
+            f"Aseguradora {canonical} reconocida. Procedimiento "
+            f"'{datos.get('procedimiento_cie10') or '?'}' NO en catálogo "
+            f"(DATA_STATUS=SIMULADO). Safe-default → HITL."
+        )
+    else:
+        razon_decision = (
+            f"Aseguradora {canonical} reconocida. Procedimiento "
+            f"'{datos.get('procedimiento_cie10')}' en catálogo. "
+            f"Confidence combinada {confidence_combinada:.2f}."
+        )
+
     delta["audit_entries"] = [
         _entry(
             state,
@@ -161,6 +216,9 @@ async def verificar_cobertura(state: AuthorizationState) -> dict:
                 "cobertura_verificada": cubierto,
                 "requiere_autorizacion": requiere_auth,
                 "documentacion_requerida": documentacion,
+                "razon_decision": razon_decision,
+                "modelo_version": "calculador-v1.0.0-simulado",
+                "modo_inferencia": "deterministic",
             },
             confidence_score=confidence_combinada,
         )
@@ -191,7 +249,12 @@ async def generar_solicitud(state: AuthorizationState) -> dict:
                     accion="generar_solicitud",
                     actor="calculador_generador_solicitud",
                     datos_entrada={"requiere_autorizacion": False},
-                    datos_salida={"estado": "no_requiere_autorizacion"},
+                    datos_salida={
+                        "estado": "no_requiere_autorizacion",
+                        "razon_decision": "Procedimiento NO requiere autorización previa según catálogo.",
+                        "modelo_version": "generador-v1.0.0-simulado",
+                        "modo_inferencia": "deterministic",
+                    },
                 )
             ],
         }
@@ -215,7 +278,15 @@ async def generar_solicitud(state: AuthorizationState) -> dict:
                     accion="generar_solicitud",
                     actor="calculador_generador_solicitud",
                     datos_entrada={"aseguradora": aseguradora, "cie10": cie10},
-                    datos_salida={"estado": "pendiente_hitl", "razon": "sin_codigo"},
+                    datos_salida={
+                        "estado": "pendiente_hitl",
+                        "razon_decision": (
+                            f"No hay código en codigos_{aseguradora}.py para CIE-10 '{cie10}' "
+                            f"y póliza '{tipo_poliza}'. Safe-default → HITL."
+                        ),
+                        "modelo_version": "generador-v1.0.0-simulado",
+                        "modo_inferencia": "deterministic",
+                    },
                     hitl_intervencion=True,
                 )
             ],
@@ -257,6 +328,12 @@ async def generar_solicitud(state: AuthorizationState) -> dict:
                 datos_salida={
                     "estado": "solicitud_generada",
                     "procedimiento_codigo": codigo.codigo,
+                    "razon_decision": (
+                        f"Código '{codigo.codigo}' asignado por codigos_{aseguradora}.py "
+                        f"v1.0.0-simulado para CIE-10 '{cie10}', póliza '{tipo_poliza}'."
+                    ),
+                    "modelo_version": "generador-v1.0.0-simulado",
+                    "modo_inferencia": "deterministic",
                 },
             )
         ],
@@ -280,6 +357,13 @@ def _split_nombre(nombre_completo: str | None) -> tuple[str, str]:
 async def hitl_check(state: AuthorizationState) -> dict:
     """Si hitl_requerido, marca pendiente_hitl. Sino, passthrough."""
     if state.get("hitl_requerido"):
+        confidence = state.get("confidence_score") or 0.0
+        razon_hitl_state = state.get("razon_hitl") or ""
+        razon_decision = (
+            f"Confidence {confidence:.2f} por debajo del umbral 0.80 — "
+            f"escalado a revisión humana (regla 4 sec 19). "
+            f"Motivo: {razon_hitl_state or 'safe-default'}."
+        )
         return {
             "estado": "pendiente_hitl",
             "audit_entries": [
@@ -288,10 +372,16 @@ async def hitl_check(state: AuthorizationState) -> dict:
                     accion="hitl_check",
                     actor="agente_autorizaciones",
                     datos_entrada={
-                        "confidence_score": state.get("confidence_score"),
-                        "razon_hitl": state.get("razon_hitl", ""),
+                        "confidence_score": confidence,
+                        "umbral_hitl": 0.80,
+                        "razon_hitl": razon_hitl_state,
                     },
-                    datos_salida={"estado": "pendiente_hitl"},
+                    datos_salida={
+                        "estado": "pendiente_hitl",
+                        "razon_decision": razon_decision,
+                        "modelo_version": "agente-v1.0.0-simulado",
+                        "modo_inferencia": "deterministic",
+                    },
                     hitl_intervencion=True,
                 )
             ],
@@ -328,6 +418,13 @@ async def enviar_solicitud(state: AuthorizationState) -> dict:
                     "estado": "enviado",
                     "referencia": resultado["referencia"],
                     "estado_aseguradora": resultado.get("estado"),
+                    "razon_decision": (
+                        f"Enviado vía MockConnector. "
+                        f"Referencia {resultado['referencia']}. "
+                        f"Respuesta de la aseguradora: {resultado.get('estado')}."
+                    ),
+                    "modelo_version": f"connector-{modo}-v1",
+                    "modo_inferencia": modo,
                 },
             )
         ],
@@ -349,7 +446,12 @@ async def monitorizar_respuesta(state: AuthorizationState) -> dict:
                 accion="monitorizar_respuesta",
                 actor="agente_autorizaciones",
                 datos_entrada={"referencia": state.get("solicitud_referencia")},
-                datos_salida={"estado": "pendiente_respuesta"},
+                datos_salida={
+                    "estado": "pendiente_respuesta",
+                    "razon_decision": "Monitorizando respuesta de la aseguradora (no-op en mock).",
+                    "modelo_version": "agente-v1.0.0-simulado",
+                    "modo_inferencia": "deterministic",
+                },
             )
         ],
     }
@@ -378,6 +480,11 @@ async def procesar_respuesta(state: AuthorizationState) -> dict:
         delta["estado"] = "error"
         delta["errores"] = [f"Estado aseguradora desconocido: {estado_aseguradora}"]
 
+    razon_decision = (
+        f"Respuesta aseguradora: {estado_aseguradora}. "
+        f"Estado final: {delta['estado']}."
+        + (f" Nº autorización: {delta.get('numero_autorizacion')}." if delta.get("numero_autorizacion") else "")
+    )
     delta["audit_entries"] = [
         _entry(
             state,
@@ -387,6 +494,9 @@ async def procesar_respuesta(state: AuthorizationState) -> dict:
             datos_salida={
                 "estado": delta["estado"],
                 "numero_autorizacion": delta.get("numero_autorizacion"),
+                "razon_decision": razon_decision,
+                "modelo_version": "agente-v1.0.0-simulado",
+                "modo_inferencia": "deterministic",
             },
         )
     ]
@@ -409,17 +519,24 @@ async def notificar_resultado(state: AuthorizationState) -> dict:
             "numero_autorizacion": state.get("numero_autorizacion"),
         },
     )
+    estado_actual = state.get("estado", "desconocido")
     return {
-        "estado": state.get("estado", "desconocido"),
+        "estado": estado_actual,
         "audit_entries": [
             _entry(
                 state,
                 accion="notificar_resultado",
                 actor="agente_autorizaciones",
-                datos_entrada={"estado": state.get("estado")},
+                datos_entrada={"estado": estado_actual},
                 datos_salida={
-                    "estado": state.get("estado"),
+                    "estado": estado_actual,
                     "numero_autorizacion": state.get("numero_autorizacion"),
+                    "razon_decision": (
+                        f"Notificación enviada al HIS y al revisor. "
+                        f"Estado final: {estado_actual}."
+                    ),
+                    "modelo_version": "agente-v1.0.0-simulado",
+                    "modo_inferencia": "deterministic",
                 },
             )
         ],

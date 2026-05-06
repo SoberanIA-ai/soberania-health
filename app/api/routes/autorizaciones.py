@@ -44,11 +44,68 @@ async def listar_pendientes_hitl(db: Session = Depends(get_db)):
     return service.listar_pendientes_hitl()
 
 
+@router.get("/", response_model=list[AutorizacionDetalleResponse])
+async def listar_todas(
+    limit: int = 200,
+    db: Session = Depends(get_db),
+):
+    """Lista TODAS las autorizaciones (para vista Auditoría AI Act)."""
+    service = AutorizacionService(db)
+    return service.listar_todas(limit=limit)
+
+
 @router.get("/metricas")
 async def obtener_metricas(db: Session = Depends(get_db)) -> dict:
     """Métricas agregadas para el dashboard."""
     service = AutorizacionService(db)
     return service.metricas()
+
+
+@router.get("/metricas-aiact")
+async def obtener_metricas_aiact(db: Session = Depends(get_db)) -> dict:
+    """Métricas de compliance AI Act para la pestaña de auditoría.
+
+    - porcentaje_supervision_humana: % autorizaciones que pasaron por HITL
+    - porcentaje_contradicciones: % donde el humano contradijo al agente
+    - tiempo_medio_revision_segundos: media del tiempo en cola HITL
+    """
+    from sqlalchemy import text as sql_text
+
+    service = AutorizacionService(db)
+    base = service.metricas()
+    total = base["total"]
+
+    # Buscamos en audit_log las entradas hitl_intervencion=True que persisten
+    # los campos coincide_con_agente y tiempo_en_cola_segundos en datos_salida.
+    rows = db.execute(
+        sql_text(
+            "SELECT datos_salida FROM audit_log "
+            "WHERE hitl_intervencion = TRUE AND actor LIKE 'hitl_supervisor:%'"
+        )
+    ).fetchall()
+
+    decisiones_humanas = [r[0] for r in rows if r[0]]
+    contradicciones = sum(
+        1 for d in decisiones_humanas if d.get("coincide_con_agente") is False
+    )
+    tiempos = [
+        d.get("tiempo_en_cola_segundos")
+        for d in decisiones_humanas
+        if d.get("tiempo_en_cola_segundos") is not None
+    ]
+    tiempo_medio = sum(tiempos) / len(tiempos) if tiempos else None
+
+    return {
+        "total_autorizaciones": total,
+        "con_supervision_humana": base["con_hitl"],
+        "porcentaje_supervision": (base["con_hitl"] / total) if total else 0.0,
+        "decisiones_humanas_registradas": len(decisiones_humanas),
+        "humano_contradijo_agente": contradicciones,
+        "porcentaje_contradicciones": (
+            contradicciones / len(decisiones_humanas) if decisiones_humanas else 0.0
+        ),
+        "tiempo_medio_revision_segundos": tiempo_medio,
+    }
 
 
 @router.get("/{autorizacion_id}", response_model=AutorizacionDetalleResponse)

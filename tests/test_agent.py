@@ -130,7 +130,7 @@ async def test_audit_entry_contiene_modelo_y_confidence(monkeypatch):
     parse_entry = next(
         e for e in final["audit_entries"] if e["accion"] == "parse_orden_medica"
     )
-    assert parse_entry["modelo_usado"] == "mock"
+    assert parse_entry["modelo_usado"] == "mock-heuristic-v1"
     assert 0.0 <= parse_entry["confidence_score"] <= 1.0
     assert parse_entry["version_calculador"] == "1.0.0-simulado"
     assert parse_entry["actor"] == "agente_parser_llm"
