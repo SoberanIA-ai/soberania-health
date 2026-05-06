@@ -22,7 +22,7 @@ import httpx
 
 API_BASE = os.environ.get("API_BASE", "http://localhost:8000")
 DASHBOARD_BASE = os.environ.get(
-    "DASHBOARD_BASE", "http://localhost:8501"
+    "DASHBOARD_BASE", "http://localhost:8002/dashboard"
 )
 
 
