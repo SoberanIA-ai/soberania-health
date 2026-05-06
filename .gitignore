@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual envs
+venv/
+env/
+.venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data — nunca commitear datos reales o backups locales
+data/codigos/*.json
+!data/codigos/.gitkeep
+data/casos_test/*.json
+!data/casos_test/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker volumes
+postgres_data/
+
+# Logs
+*.log
+logs/
+
+# Alembic — mantener migraciones en git, ignorar caches
+alembic/__pycache__/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Playwright
+playwright-report/
+test-results/

@@ -1,0 +1,68 @@
+services:
+  api:
+    build: .
+    ports:
+      # Puerto host 8002 porque 8000 lo usa soberania-os-v2 en local.
+      # En producción y para demo a HM, mapear a 8000:8000.
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://soberania:soberania@db:5432/health
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=http://langfuse:3000
+      - MODO_DEFAULT=mock
+    volumes:
+      - ./app:/app/app
+      - ./data:/app/data
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+  dashboard:
+    build: .
+    ports:
+      - "8503:8501"
+    environment:
+      - API_BASE=http://api:8000
+    volumes:
+      - ./dashboard:/app/dashboard
+    depends_on:
+      - api
+    command: streamlit run dashboard/hitl_dashboard.py --server.address=0.0.0.0 --server.port=8501
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: soberania
+      POSTGRES_PASSWORD: soberania
+      POSTGRES_DB: health
+    # No exponemos 5432 al host — la API se conecta por red interna de docker.
+    # Si necesitas acceso desde fuera (cliente DB local), añade  ports: ["5433:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soberania"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    image: langfuse/langfuse:2
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=postgresql://soberania:soberania@db:5432/langfuse
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=change-me-in-prod-soberania-langfuse-secret
+      - SALT=change-me-in-prod-soberania-langfuse-salt
+      - TELEMETRY_ENABLED=false
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
