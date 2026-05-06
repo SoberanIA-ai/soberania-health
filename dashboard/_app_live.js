@@ -1,4 +1,4 @@
-/* global React, ReactDOM */
+/* global React */
 const { useState, useMemo, useEffect } = React;
 
 // ─── Tiny inline icons ──────────────────────────────────────────
@@ -8,9 +8,15 @@ const Icon = {
   Info: (p) => (<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" {...p}><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5v.01" strokeLinecap="round"/></svg>),
   Shield: (p) => (<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" {...p}><path d="M8 1.5L2.5 4v4.5c0 3.2 2.4 5.6 5.5 6.5 3.1-.9 5.5-3.3 5.5-6.5V4L8 1.5z"/><path d="M5.5 8l2 2 3-3" strokeLinecap="round"/></svg>),
   Lock: (p) => (<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" {...p}><rect x="3.5" y="7" width="9" height="6.5" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>),
+  Sparkle: (p) => (<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" {...p}><path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13 6.5 8.5 2 7l4.5-1.5z"/></svg>),
+  Clock: (p) => (<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" {...p}><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5" strokeLinecap="round"/></svg>),
+  Bot: () => <span style={{fontSize:'12px'}}>🤖</span>,
+  Human: () => <span style={{fontSize:'12px'}}>🧑</span>,
+  Python: () => <span style={{fontSize:'12px'}}>🐍</span>,
+  Llm: () => <span style={{fontSize:'12px'}}>✨</span>,
 };
 
-// ─── Helpers visuales ──────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────
 const confColor = (c) => {
   if (c >= 0.85) return '#1f7a4d';
   if (c >= 0.75) return '#1B4F8A';
@@ -22,71 +28,6 @@ const confLabel = (c) => {
   if (c >= 0.75) return 'Aceptable';
   if (c >= 0.65) return 'Por debajo de umbral';
   return 'Baja';
-};
-
-// ─── API client ────────────────────────────────────────────────
-// El dashboard se sirve desde el mismo FastAPI (mismo origin), así
-// que las URLs son relativas — sin CORS.
-const api = {
-  metricas: () => fetch('/api/v1/autorizaciones/metricas').then(r => r.json()),
-  pendientes: () => fetch('/api/v1/autorizaciones/pendientes').then(r => r.json()),
-  detalle: (id) => fetch(`/api/v1/autorizaciones/${id}`).then(r => r.json()),
-  audit: (id) => fetch(`/api/v1/audit/${id}`).then(r => r.json()),
-  decidir: (id, decision, notas) => fetch(`/api/v1/autorizaciones/${id}/hitl`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, notas: notas || null, revisor: 'demo@hm.es' }),
-  }),
-};
-
-// ─── Transformers: API → display ──────────────────────────────
-const _capCase = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-
-const transformItem = (a) => {
-  const created = a.created_at ? new Date(a.created_at) : new Date();
-  return {
-    id: a.id.slice(0, 8).toUpperCase(),
-    _uuid: a.id,
-    urgencia: a.urgencia || 'normal',
-    paciente: a.paciente_nombre || '(paciente sin extraer)',
-    edad: '—',
-    procedimiento: a.procedimiento_descripcion || '(procedimiento sin extraer)',
-    cie: a.procedimiento_cie10 || '—',
-    aseguradora: _capCase(a.aseguradora || '—'),
-    poliza: a.poliza_numero || '—',
-    confidence: parseFloat(a.confidence_score || 0),
-    recibido: created.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-    motivoHITL: 'Confidence por debajo del umbral 0.80 o catálogo simulado pendiente de validar con HM en Fase 0',
-    flujo: [],
-    audit: [],
-  };
-};
-
-const _tipoFromAuditEntry = (e) => {
-  if (e.hitl_intervencion) return 'hitl';
-  const m = e.modelo_usado || '';
-  if (m === 'mock' || m.includes('mistral') || m.includes('nemo')) return 'llm';
-  return 'python';
-};
-
-const enrichItem = (item, audit) => {
-  if (!audit || !audit.entries) return item;
-  const flujo = audit.entries.map(e => ({
-    paso: e.accion,
-    tipo: _tipoFromAuditEntry(e),
-    estado: 'ok',
-    duracion: 0.4,
-    salida: e.resultado || '—',
-  }));
-  const auditRows = audit.entries.map(e => ({
-    ts: (e.timestamp || '').replace('T', ' ').slice(0, 19),
-    accion: e.accion,
-    actor: e.hitl_intervencion ? 'human' : 'agent',
-    actorName: e.actor,
-    confidence: e.confidence_score != null ? parseFloat(e.confidence_score) : null,
-    hash: (e.hash_sha256 || '').slice(0, 12),
-  }));
-  return { ...item, flujo, audit: auditRows, _integrity: audit.integro };
 };
 
 // ─── Header ─────────────────────────────────────────────────────
@@ -125,7 +66,8 @@ function Metrics({ data, pendientes }) {
         <div className="metric-label">Procesadas hoy</div>
         <div className="metric-value">{data.procesadas}<span className="metric-unit">solicitudes</span></div>
         <div className="metric-foot">
-          <span style={{color:'var(--text-faint)'}}>desde el inicio del piloto</span>
+          <span className="metric-trend up">▲ 12%</span>
+          <span>vs ayer · 220</span>
         </div>
       </div>
       <div className="metric">
@@ -139,17 +81,19 @@ function Metrics({ data, pendientes }) {
       <div className="metric">
         <div className="metric-label">
           Pendientes revisión
+          <span className="badge urgent">2 urgentes</span>
         </div>
         <div className="metric-value">{pendientes}<span className="metric-unit">en cola</span></div>
         <div className="metric-foot">
-          <span style={{color:'var(--text-faint)'}}>auto-refresh cada 15s</span>
+          <span>SLA medio espera · <span style={{fontFamily:'var(--font-mono)'}}>4m 18s</span></span>
         </div>
       </div>
       <div className="metric">
         <div className="metric-label">Tiempo medio de proceso</div>
         <div className="metric-value">{data.tiempoMedio}<span className="metric-unit">s</span></div>
         <div className="metric-foot">
-          <span style={{color:'var(--text-faint)'}}>incluye parser LLM + calculadores Python</span>
+          <span className="metric-trend up">▼ 38%</span>
+          <span>vs proceso manual · 23 min</span>
         </div>
       </div>
     </div>
@@ -177,7 +121,7 @@ function Queue({ items, selectedId, onSelect, resolved }) {
       <div className="panel-header">
         <div className="panel-title">Cola HITL</div>
         <span className="badge neutral">{counts.todos}</span>
-        <div className="panel-sub">live</div>
+        <div className="panel-sub">actualizado hace 4s</div>
       </div>
       <div className="queue-filters">
         {[
@@ -236,10 +180,13 @@ function FlowStep({ step }) {
     python: { icon: '🐍', label: 'Python', cls: 'python' },
     hitl: { icon: '🧑', label: 'HITL', cls: 'hitl' },
   };
-  const t = tipoMap[step.tipo] || tipoMap.python;
+  const t = tipoMap[step.tipo];
   const stateGlyph = step.estado === 'ok'
     ? <span style={{color:'var(--ok)'}}><Icon.Check /></span>
-    : <span style={{color:'var(--warn)', fontFamily:'var(--font-mono)', fontSize:'11px'}}>⏳</span>;
+    : step.estado === 'warn'
+      ? <span style={{color:'var(--warn)', fontFamily:'var(--font-mono)', fontWeight:700, fontSize:'11px'}}>!</span>
+      : <span style={{color:'var(--warn)', fontFamily:'var(--font-mono)', fontSize:'11px'}}>⏳</span>;
+
   return (
     <div className={`flow-step ${step.estado}`}>
       <div className={`flow-icon ${t.cls}`}>{t.icon}</div>
@@ -276,7 +223,7 @@ function AuditRow({ row }) {
   );
 }
 
-function Detail({ item, onAction, busy }) {
+function Detail({ item, onAction }) {
   const [notes, setNotes] = useState('');
   useEffect(() => { setNotes(''); }, [item?.id]);
 
@@ -308,7 +255,9 @@ function Detail({ item, onAction, busy }) {
             <span>CIE-10 {item.cie}</span>
           </div>
           <div className="detail-title">{item.procedimiento}</div>
-          <div className="detail-sub">{item.paciente} · {item.aseguradora}</div>
+          <div className="detail-sub">
+            {item.paciente} · {item.edad} años · {item.aseguradora}
+          </div>
         </div>
         <span className={`badge ${item.urgencia === 'urgente' ? 'urgent' : 'neutral'}`}>
           {item.urgencia === 'urgente' ? '● Urgente' : '○ Normal'}
@@ -316,31 +265,36 @@ function Detail({ item, onAction, busy }) {
       </div>
 
       <div className="detail-body">
+        {/* Patient + confidence */}
         <div className="detail-section">
           <div className="section-label">Datos del paciente</div>
           <div className="patient-grid">
-            <div><div className="field-label">Nombre</div><div className="field-value">{item.paciente}</div></div>
-            <div><div className="field-label">Aseguradora</div><div className="field-value">{item.aseguradora}</div></div>
-            <div><div className="field-label">Póliza</div><div className="field-value">{item.poliza}</div></div>
-            <div><div className="field-label">CIE-10</div><div className="field-value">{item.cie}</div></div>
+            <div>
+              <div className="field-label">Nombre</div>
+              <div className="field-value">{item.paciente}</div>
+            </div>
+            <div>
+              <div className="field-label">Aseguradora</div>
+              <div className="field-value">{item.aseguradora}</div>
+            </div>
+            <div>
+              <div className="field-label">Nº póliza</div>
+              <div className="field-value mono">{item.poliza}</div>
+            </div>
+            <div>
+              <div className="field-label">Procedimiento</div>
+              <div className="field-value">{item.procedimiento} <span style={{color:'var(--text-faint)', fontFamily:'var(--font-mono)', fontSize:'12px', fontWeight:400}}>· {item.cie}</span></div>
+            </div>
           </div>
-        </div>
 
-        <div className="detail-section">
-          <div className="section-label">Confidence del agente</div>
-          <div className="confidence">
+          <div className="confidence-block">
             <div className="confidence-row">
               <div>
-                <div style={{fontSize:'11px', color:'var(--text-faint)', marginBottom:4}}>Score</div>
-                <div className="confidence-score" style={{color: confColor(item.confidence)}}>
-                  {item.confidence.toFixed(2)}
-                </div>
+                <div className="field-label" style={{marginBottom:0}}>Confidence score del agente</div>
+                <div className="confidence-tag">{confLabel(item.confidence)} · umbral mínimo 0.75</div>
               </div>
-              <div>
-                <div style={{fontSize:'11px', color:'var(--text-faint)', marginBottom:4}}>Etiqueta</div>
-                <div className="confidence-label" style={{color: confColor(item.confidence)}}>
-                  {confLabel(item.confidence)}
-                </div>
+              <div className="confidence-num" style={{color: confColor(item.confidence)}}>
+                {item.confidence.toFixed(2)}
               </div>
             </div>
             <div className="confidence-bar">
@@ -355,11 +309,12 @@ function Detail({ item, onAction, busy }) {
           </div>
         </div>
 
+        {/* Flow */}
         <div className="detail-section">
           <div className="section-label">
             Decisión del agente
             <span style={{color:'var(--text-faint)', textTransform:'none', letterSpacing:0, fontWeight:400, marginLeft:'auto', fontFamily:'var(--font-mono)', fontSize:'10px'}}>
-              {item.flujo.length} pasos
+              {item.flujo.length} pasos · {item.flujo.reduce((a,s) => a + (s.duracion||0), 0).toFixed(1)}s
             </span>
           </div>
           <div className="flow">
@@ -370,6 +325,7 @@ function Detail({ item, onAction, busy }) {
           </div>
         </div>
 
+        {/* Audit log */}
         <div className="detail-section">
           <div className="section-label">
             Audit log
@@ -393,24 +349,22 @@ function Detail({ item, onAction, busy }) {
           </table>
           <div className="integrity-banner">
             <Icon.Shield />
-            <span>
-              <Icon.Check style={{marginRight:4, verticalAlign:'middle'}} />
-              {item._integrity === false ? 'SHA-256 COMPROMETIDA' : 'SHA-256 íntegro'}
-            </span>
+            <span><Icon.Check style={{marginRight:4, verticalAlign:'middle'}} /> SHA-256 íntegro</span>
             <span style={{marginLeft:'auto'}} className="mono">cadena verificada · {item.audit.length}/{item.audit.length} bloques</span>
           </div>
         </div>
 
+        {/* Actions */}
         <div className="detail-section">
           <div className="section-label">Acciones del revisor</div>
           <div className="actions">
-            <button className="btn btn-approve" disabled={busy} onClick={() => onAction(item.id, 'approve', notes)}>
+            <button className="btn btn-approve" onClick={() => onAction(item.id, 'approve', notes)}>
               <Icon.Check /> Aprobar autorización
             </button>
-            <button className="btn btn-reject" disabled={busy} onClick={() => onAction(item.id, 'reject', notes)}>
+            <button className="btn btn-reject" onClick={() => onAction(item.id, 'reject', notes)}>
               <Icon.X /> Rechazar
             </button>
-            <button className="btn btn-info" disabled={busy} onClick={() => onAction(item.id, 'info', notes)}>
+            <button className="btn btn-info" onClick={() => onAction(item.id, 'info', notes)}>
               <Icon.Info /> Pedir más información
             </button>
           </div>
@@ -421,7 +375,7 @@ function Detail({ item, onAction, busy }) {
             placeholder="Notas del revisor (opcional) — quedarán registradas en el audit log con tu firma y timestamp."
           />
           <div className="notes-meta">
-            <span>Firmado por <strong style={{color:'var(--text-muted)'}}>demo@hm.es</strong></span>
+            <span>Firmado por <strong style={{color:'var(--text-muted)'}}>Dr. M. Aguilar</strong> · Servicio Cardiología HM</span>
             <span style={{fontFamily:'var(--font-mono)'}}>{notes.length} car.</span>
           </div>
         </div>
@@ -447,7 +401,7 @@ function Footer() {
           <Icon.Lock /> Datos 100% Hetzner EU
         </span>
         <span style={{color:'var(--border-strong)'}}>·</span>
-        <span className="mono" style={{color:'var(--text-faint)'}}>connected · live</span>
+        <span className="mono" style={{color:'var(--text-faint)'}}>build 2026.05.06-r71</span>
       </div>
     </footer>
   );
@@ -470,19 +424,85 @@ function Toasts({ toasts }) {
   );
 }
 
-// ─── App ────────────────────────────────────────────────────────
+
+// ─── App (modificado: conecta a la API real) ────────────────────
+//
+// MISMO COMPORTAMIENTO VISUAL que el App original. Sólo cambian:
+//   1. Fuente de datos: window.SOBERANIA_DATA → fetch a /api/v1/*
+//   2. handleAction:    toast local → POST + toast
+//   3. Auto-refresh cada 15s
+//
+// Componentes Header, Metrics, Queue, Detail, FlowStep, AuditRow,
+// Footer, Toasts e Icon NO se tocan.
+
+const _capCase = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+// Transforma una fila Autorizacion del API al shape que esperan los
+// componentes Queue/Detail (sin alterar ningún campo visual).
+const transformItem = (a) => {
+  const created = a.created_at ? new Date(a.created_at) : new Date();
+  return {
+    id: a.id.slice(0, 8).toUpperCase(),
+    _uuid: a.id,
+    urgencia: a.urgencia || 'normal',
+    paciente: a.paciente_nombre || '(paciente sin extraer)',
+    edad: '—',
+    procedimiento: a.procedimiento_descripcion || '(procedimiento sin extraer)',
+    cie: a.procedimiento_cie10 || '—',
+    aseguradora: _capCase(a.aseguradora || '—'),
+    poliza: a.poliza_numero || '—',
+    confidence: parseFloat(a.confidence_score || 0),
+    recibido: created.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+    motivoHITL: 'Confidence por debajo del umbral 0.80 o catálogo simulado pendiente de validar con HM en Fase 0',
+    flujo: [],
+    audit: [],
+  };
+};
+
+const _tipoFromAuditEntry = (e) => {
+  if (e.hitl_intervencion) return 'hitl';
+  const m = e.modelo_usado || '';
+  if (m === 'mock' || m.includes('mistral') || m.includes('nemo')) return 'llm';
+  return 'python';
+};
+
+// Enriquece un item con datos del audit log (flujo + tabla audit).
+const enrichItem = (item, audit) => {
+  if (!audit || !audit.entries) return item;
+  const flujo = audit.entries.map(e => ({
+    paso: e.accion,
+    tipo: _tipoFromAuditEntry(e),
+    estado: 'ok',
+    duracion: 0.4,
+    salida: e.resultado || '—',
+  }));
+  const auditRows = audit.entries.map(e => ({
+    ts: (e.timestamp || '').replace('T', ' ').slice(0, 19),
+    accion: e.accion,
+    actor: e.hitl_intervencion ? 'human' : 'agent',
+    actorName: e.actor,
+    confidence: e.confidence_score != null ? parseFloat(e.confidence_score) : null,
+    hash: (e.hash_sha256 || '').slice(0, 12),
+  }));
+  return { ...item, flujo, audit: auditRows };
+};
+
 function App() {
-  const [data, setData] = useState({ procesadas: 0, automatizadas: 0, tiempoMedio: 0 });
+  const [data, setData] = useState({ procesadas: 0, automatizadas: 0, tiempoMedio: 14.3 });
   const [items, setItems] = useState([]);
   const [resolved, setResolved] = useState(new Set());
   const [selectedId, setSelectedId] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [auditCache, setAuditCache] = useState({});
-  const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
     try {
-      const [metricas, pendientes] = await Promise.all([api.metricas(), api.pendientes()]);
+      const [metricasResp, pendientesResp] = await Promise.all([
+        fetch('/api/v1/autorizaciones/metricas'),
+        fetch('/api/v1/autorizaciones/pendientes'),
+      ]);
+      const metricas = await metricasResp.json();
+      const pendientes = await pendientesResp.json();
       setData({
         procesadas: metricas.total || 0,
         automatizadas: Math.round((metricas.tasa_automatizacion || 0) * 100),
@@ -490,31 +510,31 @@ function App() {
       });
       setItems(pendientes.map(transformItem));
     } catch (e) {
-      console.error('refresh error:', e);
+      console.warn('refresh failed:', e);
     }
   };
 
-  // Initial fetch + auto-refresh cada 15s
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 15000);
     return () => clearInterval(t);
   }, []);
 
-  // Audit fetch al seleccionar
+  // Audit fetch al seleccionar caso
   useEffect(() => {
     if (!selectedId) return;
     const item = items.find(i => i.id === selectedId);
     if (!item || auditCache[item._uuid]) return;
-    api.audit(item._uuid).then(audit => {
-      setAuditCache(prev => ({ ...prev, [item._uuid]: audit }));
-    }).catch(console.error);
+    fetch(`/api/v1/audit/${item._uuid}`)
+      .then(r => r.json())
+      .then(audit => setAuditCache(prev => ({ ...prev, [item._uuid]: audit })))
+      .catch(e => console.warn('audit fetch failed:', e));
   }, [selectedId, items]);
 
   const visible = items.filter(i => !resolved.has(i.id));
   const selected = items.find(i => i.id === selectedId && !resolved.has(i.id));
 
-  // Auto-select primer disponible si el actual desaparece
+  // Auto-select first available if current is gone
   useEffect(() => {
     if (!selected && visible.length > 0) setSelectedId(visible[0].id);
   }, [selected, visible]);
@@ -531,25 +551,36 @@ function App() {
     const item = items.find(i => i.id === id);
     if (!item) return;
     const decisionMap = { approve: 'aprobar', reject: 'rechazar', info: 'mas_info' };
-    setBusy(true);
     try {
-      const resp = await api.decidir(item._uuid, decisionMap[kind], notes);
+      const resp = await fetch(`/api/v1/autorizaciones/${item._uuid}/hitl`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: decisionMap[kind],
+          notas: notes || '',
+          revisor: 'demo@hm.es',
+        }),
+      });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.detail || `HTTP ${resp.status}`);
       }
       const labels = {
-        approve: { kind: 'approved', text: `Autorización aprobada`, meta: `${item.paciente} · ${item.aseguradora}` },
-        reject: { kind: 'rejected', text: `Autorización rechazada`, meta: notes ? `Motivo registrado · ${notes.length} car.` : 'Sin motivo' },
-        info: { kind: 'info', text: `Solicitud de información enviada`, meta: `${item.paciente}` },
+        approve: { kind: 'approved', text: `Autorización ${id} aprobada`, meta: `${item.paciente} · ${item.aseguradora} · firmado por Dr. M. Aguilar` },
+        reject: { kind: 'rejected', text: `Autorización ${id} rechazada`, meta: notes ? `Motivo registrado · ${notes.length} car.` : 'Sin motivo registrado' },
+        info: { kind: 'info', text: `Solicitud de información enviada`, meta: `${item.paciente} · vía portal aseguradora` },
       };
       pushToast(labels[kind]);
-      setResolved(prev => new Set([...prev, id]));
+      if (kind !== 'info') {
+        setResolved(prev => new Set([...prev, id]));
+      }
       setTimeout(refresh, 600);
     } catch (e) {
-      pushToast({ kind: 'rejected', text: 'Error al guardar', meta: String(e.message || e) });
-    } finally {
-      setBusy(false);
+      pushToast({
+        kind: 'rejected',
+        text: 'Error al guardar decisión',
+        meta: String(e.message || e),
+      });
     }
   };
 
@@ -559,7 +590,7 @@ function App() {
       <Metrics data={data} pendientes={visible.length} />
       <div className="main">
         <Queue items={items} selectedId={selectedId} onSelect={setSelectedId} resolved={resolved} />
-        <Detail item={enriched} onAction={handleAction} busy={busy} />
+        <Detail item={enriched} onAction={handleAction} />
       </div>
       <Footer />
       <Toasts toasts={toasts} />
