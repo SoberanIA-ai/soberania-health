@@ -100,8 +100,11 @@ _PROCEDIMIENTOS_KEYWORDS = [
     (r"rm[\s_-]+rodilla|resonancia.{0,30}rodilla", "SIM_RM_RODILLA_DCHA", "Resonancia magnética rodilla derecha"),
     (r"tac[\s_-]+abdomin|tomograf[ií]a.{0,30}abdomin", "SIM_TAC_ABDOMINAL", "TAC abdominal con contraste"),
     (r"cirug[ií]a.{0,30}rodilla", "SIM_CIRUGIA_RODILLA_AMB", "Cirugía ambulatoria de rodilla"),
+    (r"cirug[ií]a.{0,30}cadera", "SIM_CIRUGIA_CADERA", "Cirugía de cadera"),
     (r"rm[\s_-]+cerebr|resonancia.{0,30}cerebr", "SIM_RM_CEREBRAL", "Resonancia magnética cerebral"),
+    (r"rm[\s_-]+(?:columna|lumbar)|resonancia.{0,30}(?:columna|lumbar)", "SIM_RM_COLUMNA_LUMBAR", "Resonancia magnética columna lumbar"),
     (r"tac[\s_-]+t[oó]rax|tomograf[ií]a.{0,30}t[oó]rax", "SIM_TAC_TORAX", "TAC tórax"),
+    (r"tac[\s_-]+(?:cerebr|cranea?l)|tomograf[ií]a.{0,30}(?:cerebr|cranea?l)", "SIM_TAC_CEREBRAL", "TAC cerebral"),
 ]
 
 
@@ -133,10 +136,15 @@ def _mock_parse(orden_raw: str) -> dict:
             cie10 = sim_id
             descripcion = desc
             break
+    # Fallback: si ninguna keyword matchea, extraer la línea "Procedimiento: ..."
+    # tal cual del texto libre. cie10 queda en None — eso es correcto porque
+    # sin código no podemos enviar a la aseguradora (irá a HITL por safe-default).
+    if descripcion is None:
+        descripcion = _extraer_procedimiento_libre(orden_raw)
 
     paciente_nombre = _extraer_paciente_hl7(orden_raw) or _extraer_paciente_libre(orden_raw)
     medico_nombre = _extraer_medico_hl7(orden_raw) or _extraer_medico_libre(orden_raw)
-    poliza_numero = _extraer_poliza_hl7(orden_raw)
+    poliza_numero = _extraer_poliza_hl7(orden_raw) or _extraer_poliza_libre(orden_raw)
     urgente = "urgente" in texto_lower or "urgent" in texto_lower
 
     return {
@@ -244,6 +252,38 @@ def _extraer_medico_libre(texto: str) -> Optional[str]:
 def _extraer_poliza_hl7(texto: str) -> Optional[str]:
     match = _HL7_IN1_POLIZA_RE.search(texto)
     return match.group(1) if match else None
+
+
+# Texto libre: "Póliza: Más Salud Plus 987654" → captura "987654".
+# Acepta cualquier prefijo (tipo de póliza) seguido de un número de ≥4 dígitos
+# o un código alfanumérico tipo SAN-4471892.
+_POLIZA_LIBRE_RE = re.compile(
+    r"p[oó]liza[:\s]+[^\n]*?([A-Z]{2,4}-\d{4,}|\d{4,})",
+    re.IGNORECASE,
+)
+
+
+def _extraer_poliza_libre(texto: str) -> Optional[str]:
+    match = _POLIZA_LIBRE_RE.search(texto)
+    return match.group(1) if match else None
+
+
+# Texto libre: "Procedimiento: TAC cerebral URGENTE" → captura el resto de
+# la línea sin "URGENTE" final (que ya se detecta por separado en `urgente`).
+_PROCEDIMIENTO_LIBRE_RE = re.compile(
+    r"procedimiento[:\s]+([^\n]+)",
+    re.IGNORECASE,
+)
+
+
+def _extraer_procedimiento_libre(texto: str) -> Optional[str]:
+    match = _PROCEDIMIENTO_LIBRE_RE.search(texto)
+    if not match:
+        return None
+    desc = match.group(1).strip()
+    # Quitar marca "URGENTE" final — ya viaja en el campo urgente
+    desc = re.sub(r"\s+URGENTE\s*$", "", desc, flags=re.IGNORECASE)
+    return desc.strip() or None
 
 
 # ---------------------------------------------------------------------------
