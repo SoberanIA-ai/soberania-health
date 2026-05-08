@@ -92,8 +92,10 @@ function Metrics({ data, pendientes }) {
         <div className="metric-label">Tiempo medio de proceso</div>
         <div className="metric-value">{data.tiempoMedio}<span className="metric-unit">s</span></div>
         <div className="metric-foot">
-          <span className="metric-trend up">▼ 38%</span>
-          <span>vs proceso manual · 23 min</span>
+          <span>tiempo agente vs ~25 min proceso manual</span>
+        </div>
+        <div style={{fontSize:'10px',color:'var(--text-faint)',marginTop:6,lineHeight:1.45,fontStyle:'italic'}}>
+          Tiempo de preparación y envío de la solicitud. El tiempo de respuesta de la aseguradora (24-72h) es independiente del sistema.
         </div>
       </div>
     </div>
