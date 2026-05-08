@@ -92,19 +92,33 @@ _POLIZAS_KEYWORDS = {
     "plena": "plena",
     "basica": "basica",
     "básica": "basica",
+    "elite": "elite",
     "top": "top",
 }
 
 _PROCEDIMIENTOS_KEYWORDS = [
     # (regex, sim_id, descripcion)
+    # Orden importa: las patterns más específicas van primero.
     (r"rm[\s_-]+rodilla|resonancia.{0,30}rodilla", "SIM_RM_RODILLA_DCHA", "Resonancia magnética rodilla derecha"),
     (r"tac[\s_-]+abdomin|tomograf[ií]a.{0,30}abdomin", "SIM_TAC_ABDOMINAL", "TAC abdominal con contraste"),
+    (r"artroscop", "SIM_ARTROSCOPIA_RODILLA", "Artroscopia rodilla"),
     (r"cirug[ií]a.{0,30}rodilla", "SIM_CIRUGIA_RODILLA_AMB", "Cirugía ambulatoria de rodilla"),
-    (r"cirug[ií]a.{0,30}cadera", "SIM_CIRUGIA_CADERA", "Cirugía de cadera"),
+    (r"cirug[ií]a.{0,30}cadera|fractura.{0,30}cadera", "SIM_CIRUGIA_CADERA", "Cirugía de cadera"),
+    (r"cirug[ií]a.{0,30}catarat", "SIM_CIRUGIA_CATARATAS", "Cirugía cataratas"),
     (r"rm[\s_-]+cerebr|resonancia.{0,30}cerebr", "SIM_RM_CEREBRAL", "Resonancia magnética cerebral"),
+    (r"rm[\s_-]+columna[\s_-]*cervical|resonancia.{0,30}columna[\s_-]*cervical", "SIM_RM_COLUMNA_CERVICAL", "Resonancia magnética columna cervical"),
     (r"rm[\s_-]+(?:columna|lumbar)|resonancia.{0,30}(?:columna|lumbar)", "SIM_RM_COLUMNA_LUMBAR", "Resonancia magnética columna lumbar"),
     (r"tac[\s_-]+t[oó]rax|tomograf[ií]a.{0,30}t[oó]rax", "SIM_TAC_TORAX", "TAC tórax"),
     (r"tac[\s_-]+(?:cerebr|cranea?l)|tomograf[ií]a.{0,30}(?:cerebr|cranea?l)", "SIM_TAC_CEREBRAL", "TAC cerebral"),
+    (r"colonoscop", "SIM_COLONOSCOPIA", "Colonoscopia"),
+    (r"ecocardiogram", "SIM_ECOCARDIOGRAMA", "Ecocardiograma"),
+    (r"radiograf[ií]a.{0,30}t[oó]rax", "SIM_RADIOGRAFIA_TORAX", "Radiografía tórax"),
+    (r"fisioterapi", "SIM_FISIOTERAPIA", "Fisioterapia"),
+    (r"endoscop", "SIM_ENDOSCOPIA_DIGESTIVA", "Endoscopia digestiva"),
+    (r"densitometr[ií]a", "SIM_DENSITOMETRIA_OSEA", "Densitometría ósea"),
+    (r"apendicectom[ií]a|apendic", "SIM_APENDICECTOMIA", "Apendicectomía"),
+    (r"gammagraf[ií]a", "SIM_GAMMAGRAFIA_OSEA", "Gammagrafía ósea"),
+    (r"litotric", "SIM_LITOTRICIA_RENAL", "Litotricia renal"),
 ]
 
 

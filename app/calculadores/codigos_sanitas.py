@@ -102,6 +102,39 @@ CODIGOS: dict[str, dict[str, CodigoSanitas]] = {
             notas="DATO SIMULADO — validar con Sanitas en Fase 0",
         ),
     },
+    "SIM_COLONOSCOPIA": {
+        TipoPolizaSanitas.PREMIUM.value: CodigoSanitas(
+            codigo="SIM-004",
+            descripcion="Colonoscopia",
+            requiere_autorizacion=True,
+            documentacion_requerida=["informe_clinico", "historia_clinica_previa"],
+            copago_euros=0.0,
+            plazo_respuesta_horas=72,
+            notas="DATO SIMULADO — validar con Sanitas en Fase 0",
+        ),
+    },
+    "SIM_ECOCARDIOGRAMA": {
+        TipoPolizaSanitas.BASICA.value: CodigoSanitas(
+            codigo="SIM-005",
+            descripcion="Ecocardiograma",
+            requiere_autorizacion=True,
+            documentacion_requerida=["informe_clinico"],
+            copago_euros=0.0,
+            plazo_respuesta_horas=48,
+            notas="DATO SIMULADO — validar con Sanitas en Fase 0",
+        ),
+    },
+    "SIM_ARTROSCOPIA_RODILLA": {
+        TipoPolizaSanitas.MAS_SALUD.value: CodigoSanitas(
+            codigo="SIM-006",
+            descripcion="Artroscopia rodilla",
+            requiere_autorizacion=True,
+            documentacion_requerida=["informe_clinico", "consentimiento_informado"],
+            copago_euros=0.0,
+            plazo_respuesta_horas=72,
+            notas="DATO SIMULADO — validar con Sanitas en Fase 0",
+        ),
+    },
     # Resto de los 20-30 procedimientos top — rellenar en Fase 0
     # con el Google Sheet de Isabella validado por HM.
 }

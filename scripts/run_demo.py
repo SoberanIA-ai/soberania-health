@@ -223,6 +223,251 @@ CASOS_DEMO = [
         ),
         "esperado": "pendiente_hitl",
     },
+
+    # ─── Casos adicionales (12-26) — variedad clínica + aseguradoras ───
+    {
+        "id": "demo_12",
+        "titulo": "Caso 12 — Sanitas Premium colonoscopia → autorizado",
+        "narrativa": (
+            "Colonoscopia con póliza Sanitas Premium. Procedimiento "
+            "preventivo en catálogo (SIM-004), confidence alta, aprobado."
+        ),
+        "orden": (
+            "Paciente: Ana Martínez Ruiz\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Premium 9988123\n"
+            "Procedimiento: Colonoscopia\n"
+            "Médico: Dr. Carlos Vega Aparato Digestivo"
+        ),
+        "esperado": "autorizado",
+    },
+    {
+        "id": "demo_13",
+        "titulo": "Caso 13 — Sanitas Básica ecocardiograma → autorizado",
+        "narrativa": (
+            "Ecocardiograma diagnóstico básico. Sanitas Básica + SIM-005 "
+            "en catálogo, plazo 48h."
+        ),
+        "orden": (
+            "Paciente: Fernando Gil Soto\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Básica 4471892\n"
+            "Procedimiento: Ecocardiograma\n"
+            "Médico: Dra. Elena Ruiz Cardiología"
+        ),
+        "esperado": "autorizado",
+    },
+    {
+        "id": "demo_14",
+        "titulo": "Caso 14 — Sanitas Más Salud artroscopia rodilla → autorizado",
+        "narrativa": (
+            "Artroscopia de rodilla con Sanitas Más Salud. SIM-006 en "
+            "catálogo. Procedimiento mínimamente invasivo."
+        ),
+        "orden": (
+            "Paciente: Carmen Iglesias Pardo\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Más Salud 5523781\n"
+            "Procedimiento: Artroscopia rodilla\n"
+            "Médico: Dr. Miguel Torres Traumatología"
+        ),
+        "esperado": "autorizado",
+    },
+    {
+        "id": "demo_15",
+        "titulo": "Caso 15 — Sanitas Óptima radiografía tórax → HITL",
+        "narrativa": (
+            "Radiografía tórax con diagnóstico ambiguo. Procedimiento no "
+            "está en el catálogo Sanitas simulado para Óptima → safe-default "
+            "→ HITL para clarificación clínica."
+        ),
+        "orden": (
+            "Paciente: Luis Mora Blanco\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Óptima 6634892\n"
+            "Procedimiento: Radiografía tórax diagnóstico ambiguo\n"
+            "Médico: Dr. Pedro Sanz Neumología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_16",
+        "titulo": "Caso 16 — Sanitas Más Salud Plus fisioterapia → HITL",
+        "narrativa": (
+            "Fisioterapia 10 sesiones. La fisioterapia no está en el "
+            "catálogo simulado de Sanitas (los catálogos reales suelen "
+            "tener una sección distinta para tratamientos). HITL safe-default."
+        ),
+        "orden": (
+            "Paciente: Rosa Delgado Vega\n"
+            "Aseguradora: Sanitas\n"
+            "Póliza: Más Salud Plus 7745123\n"
+            "Procedimiento: Fisioterapia 10 sesiones\n"
+            "Médico: Dra. Ana Campos Rehabilitación"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_17",
+        "titulo": "Caso 17 — Adeslas Elite cirugía cataratas → HITL",
+        "narrativa": (
+            "Cirugía cataratas con Adeslas Elite. Catálogo Adeslas vacío "
+            "(DATA_STATUS=SIMULADO). HITL hasta validar con HM en Fase 0."
+        ),
+        "orden": (
+            "Paciente: Jorge Navarro Cid\n"
+            "Aseguradora: Adeslas\n"
+            "Póliza: Elite 2234567\n"
+            "Procedimiento: Cirugía cataratas\n"
+            "Médico: Dr. Ernesto Vila Oftalmología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_18",
+        "titulo": "Caso 18 — Adeslas Completa endoscopia digestiva → HITL",
+        "narrativa": (
+            "Endoscopia digestiva. Adeslas catálogo vacío → HITL safe-default."
+        ),
+        "orden": (
+            "Paciente: Marta Lozano Reyes\n"
+            "Aseguradora: Adeslas\n"
+            "Póliza: Completa 3345678\n"
+            "Procedimiento: Endoscopia digestiva\n"
+            "Médico: Dr. Javier Ríos Digestivo"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_19",
+        "titulo": "Caso 19 — Adeslas Básica densitometría ósea → HITL",
+        "narrativa": (
+            "Densitometría ósea con Adeslas Básica. Procedimiento de "
+            "diagnóstico precoz osteoporosis. Catálogo vacío → HITL."
+        ),
+        "orden": (
+            "Paciente: Alberto Fuentes Pons\n"
+            "Aseguradora: Adeslas\n"
+            "Póliza: Básica 4456789\n"
+            "Procedimiento: Densitometría ósea\n"
+            "Médico: Dra. Clara Méndez Reumatología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_20",
+        "titulo": "Caso 20 — Adeslas Premium apendicectomía URGENTE → HITL urgente",
+        "narrativa": (
+            "Apendicectomía marcada URGENTE. Adeslas catálogo vacío. "
+            "Aunque sea urgente, safe-default no envía a ciegas → HITL "
+            "con prioridad urgente."
+        ),
+        "orden": (
+            "Paciente: Elena Guerrero Mas\n"
+            "Aseguradora: Adeslas\n"
+            "Póliza: Premium 5567890\n"
+            "Procedimiento: Apendicectomía URGENTE\n"
+            "Médico: Dr. Raúl Castro Cirugía"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_21",
+        "titulo": "Caso 21 — DKV Integral gammagrafía ósea → HITL",
+        "narrativa": (
+            "Gammagrafía ósea oncológica. DKV catálogo vacío → HITL "
+            "hasta Fase 0 con HM."
+        ),
+        "orden": (
+            "Paciente: Pablo Herrera Font\n"
+            "Aseguradora: DKV\n"
+            "Póliza: Integral 6678901\n"
+            "Procedimiento: Gammagrafía ósea\n"
+            "Médico: Dra. Nuria Vidal Oncología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_22",
+        "titulo": "Caso 22 — DKV Top litotricia renal → HITL",
+        "narrativa": (
+            "Litotricia renal extracorpórea. DKV catálogo vacío → HITL."
+        ),
+        "orden": (
+            "Paciente: Isabel Romero Llop\n"
+            "Aseguradora: DKV\n"
+            "Póliza: Top 7789012\n"
+            "Procedimiento: Litotricia renal\n"
+            "Médico: Dr. Sergio Mora Urología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_23",
+        "titulo": "Caso 23 — DKV Básica ecocardiograma → HITL",
+        "narrativa": (
+            "Ecocardiograma con DKV Básica. Aunque Sanitas tenga este "
+            "procedimiento en catálogo, DKV está vacío → HITL."
+        ),
+        "orden": (
+            "Paciente: Antonio Jiménez Sanz\n"
+            "Aseguradora: DKV\n"
+            "Póliza: Básica 8890123\n"
+            "Procedimiento: Ecocardiograma\n"
+            "Médico: Dra. Pilar León Cardiología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_24",
+        "titulo": "Caso 24 — DKV Top fractura cadera URGENTE → HITL urgente",
+        "narrativa": (
+            "Fractura de cadera urgente — paciente probable mayor. DKV "
+            "catálogo vacío → HITL urgente."
+        ),
+        "orden": (
+            "Paciente: Claudia Serrano Bou\n"
+            "Aseguradora: DKV\n"
+            "Póliza: Top 9901234\n"
+            "Procedimiento: Fractura cadera URGENTE\n"
+            "Médico: Dr. Marcos Gil Traumatología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_25",
+        "titulo": "Caso 25 — Asisa (no soportada) RM columna cervical → HITL",
+        "narrativa": (
+            "RM columna cervical con Asisa. Asisa no soportada en MVP — "
+            "identificador la marca no soportada → HITL safe-default. "
+            "Aseguradora se persiste con su nombre real para audit log."
+        ),
+        "orden": (
+            "Paciente: Víctor Molina Roca\n"
+            "Aseguradora: Asisa\n"
+            "Póliza: Completa 1123456\n"
+            "Procedimiento: Resonancia magnética columna cervical\n"
+            "Médico: Dr. Tomás Pla Neurología"
+        ),
+        "esperado": "pendiente_hitl",
+    },
+    {
+        "id": "demo_26",
+        "titulo": "Caso 26 — Cigna International TAC abdominal → HITL",
+        "narrativa": (
+            "Cigna aseguradora internacional con TAC abdominal. Aunque "
+            "el procedimiento existe en catálogo Sanitas, Cigna no es "
+            "soportada → HITL."
+        ),
+        "orden": (
+            "Paciente: Beatriz Pascual Mir\n"
+            "Aseguradora: Cigna\n"
+            "Póliza: International 2234561\n"
+            "Procedimiento: TAC abdominal con contraste\n"
+            "Médico: Dra. Laura Sans Digestivo"
+        ),
+        "esperado": "pendiente_hitl",
+    },
 ]
 
 
