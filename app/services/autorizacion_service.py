@@ -59,6 +59,16 @@ class AutorizacionService:
         self._aplicar_resultado(autorizacion, final)
         self.db.commit()
         self.db.refresh(autorizacion)
+
+        # 5. Notificar via SSE
+        from app.api.routes.notificaciones import emitir_evento
+        await emitir_evento("autorizacion_procesada", {
+            "autorizacion_id": str(autorizacion.id),
+            "estado": autorizacion.estado,
+            "paciente": autorizacion.paciente_nombre or "",
+            "aseguradora": autorizacion.aseguradora or "",
+        })
+
         return autorizacion
 
     def obtener(self, autorizacion_id: UUID | str) -> Autorizacion | None:
@@ -220,6 +230,21 @@ class AutorizacionService:
 
         self.db.commit()
         self.db.refresh(autorizacion)
+
+        # Notificar via SSE (fire-and-forget desde contexto sync)
+        try:
+            import asyncio
+            from app.api.routes.notificaciones import emitir_evento
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(emitir_evento("hitl_resuelto", {
+                    "autorizacion_id": str(autorizacion_id),
+                    "decision": decision,
+                    "revisor": revisor,
+                }))
+        except Exception:
+            pass
+
         return autorizacion
 
     @staticmethod

@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     audit_log_enabled: bool = True
     hitl_obligatorio_modo_real: bool = True
 
+    # Auth JWT
+    jwt_secret_key: str = "CAMBIAR-EN-PRODUCCION-clave-secreta-soberania-health-2026"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 480  # 8 horas — una jornada laboral completa
+
     sanitas_portal_url: str = ""
     sanitas_user: str = ""
     sanitas_password: str = ""
