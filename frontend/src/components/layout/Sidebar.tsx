@@ -10,11 +10,11 @@ interface SidebarProps {
 }
 
 const NAV = [
-  { href: '/dashboard',       icon: '📊', label: 'Resumen' },
-  { href: '/autorizaciones',  icon: '📋', label: 'Autorizaciones' },
-  { href: '/hitl',            icon: '⏳', label: 'Cola HITL',    badge: 'hitl' },
-  { href: '/urgentes',        icon: '🚨', label: 'Urgentes',     badge: 'urgentes' },
-  { href: '/auditoria',       icon: '🛡️', label: 'Auditoría AI Act', roles: ['supervisor','auditor','admin'] },
+  { href: '/dashboard',       icon: '📊', label: 'Resumen', roles: ['admin', 'recepcionista', 'supervisor'] },
+  { href: '/autorizaciones',  icon: '📋', label: 'Autorizaciones', roles: ['admin', 'recepcionista', 'supervisor'] },
+  { href: '/hitl',            icon: '⏳', label: 'Cola HITL',    badge: 'hitl', roles: ['supervisor', 'admin'] },
+  { href: '/urgentes',        icon: '🚨', label: 'Urgentes',     badge: 'urgentes', roles: ['supervisor', 'admin'] },
+  { href: '/auditoria',       icon: '🛡️', label: 'Auditoría AI Act', roles: ['auditor', 'admin'] },
 ]
 
 export function Sidebar({ hitlCount, urgentesCount }: SidebarProps) {

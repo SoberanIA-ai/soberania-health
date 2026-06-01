@@ -14,7 +14,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (user) router.replace('/dashboard')
+    if (user) {
+      if (user.rol === 'auditor') router.replace('/auditoria')
+      else router.replace('/dashboard')
+    }
   }, [user, router])
 
   async function handleLogin() {
@@ -26,7 +29,11 @@ export default function LoginPage() {
       const data = await r.json()
       if (!r.ok) { setError(data.detail || 'Credenciales incorrectas.'); return }
       login(data.access_token, data.usuario)
-      router.replace('/dashboard')
+      if (data.usuario.rol === 'auditor') {
+        router.replace('/auditoria')
+      } else {
+        router.replace('/dashboard')
+      }
     } catch {
       setError('Error de conexión. ¿Está el servidor levantado?')
     } finally {

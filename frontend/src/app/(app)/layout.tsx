@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSSE } from '@/hooks/useSSE'
 import { useToast } from '@/contexts/ToastContext'
@@ -16,12 +16,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [hitlCount, setHitlCount] = useState(0)
   const [urgentesCount, setUrgentesCount] = useState(0)
 
+  const pathname = usePathname()
+
   useEffect(() => {
     if (!user) { router.replace('/'); return }
+    
+    // RBAC: Route Protection
+    const r = user.rol
+    if (r === 'recepcionista' && ['/hitl', '/urgentes', '/auditoria'].includes(pathname)) {
+      router.replace('/dashboard'); return
+    }
+    if (r === 'supervisor' && pathname === '/auditoria') {
+      router.replace('/dashboard'); return
+    }
+    if (r === 'auditor' && pathname !== '/auditoria') {
+      router.replace('/auditoria'); return
+    }
+
     refreshCounts()
     const interval = setInterval(refreshCounts, 30_000)
     return () => clearInterval(interval)
-  }, [user])
+  }, [user, pathname, router])
 
   async function refreshCounts() {
     const [m, a] = await Promise.all([api.getMetricas(), api.getAutorizaciones()])
