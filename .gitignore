@@ -54,3 +54,12 @@ alembic/__pycache__/
 # Playwright
 playwright-report/
 test-results/
+
+# Perfiles y credenciales de demo — nunca subir al repo
+PERFILES_DEMO.md
+
+# Frontend Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/

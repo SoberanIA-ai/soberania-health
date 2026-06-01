@@ -26,10 +26,9 @@ URLs de cada servicio:
 
 | URL | Servicio |
 |-----|----------|
-| `http://localhost:8002/dashboard` | Dashboard principal (este proyecto) |
+| `http://localhost:3002` | Dashboard principal (Next.js) |
 | `http://localhost:8002/docs` | Swagger API (FastAPI) |
 | `http://localhost:8002/api/v1/health` | Health check |
-| `http://localhost:8503` | Dashboard Streamlit (fallback técnico) |
 | `http://localhost:3001` | Langfuse (trazas LLM) |
 
 ---
@@ -97,7 +96,6 @@ soberania-health/
 │   │   │   ├── health.py              # GET /api/v1/health
 │   │   │   ├── autorizaciones.py      # CRUD autorizaciones + métricas — NO TOCAR
 │   │   │   ├── audit.py               # GET /api/v1/audit/{id} + aiact-report — NO TOCAR
-│   │   │   ├── dashboard.py           # GET /dashboard (sirve el HTML) — NO TOCAR
 │   │   │   ├── auth.py                # POST /api/v1/auth/login, GET /api/v1/auth/me
 │   │   │   └── notificaciones.py      # GET /api/v1/notificaciones/stream (SSE)
 │   │   └── schemas/
@@ -118,10 +116,10 @@ soberania-health/
 │       ├── confidence.py              # Cálculo de confidence score — NO TOCAR
 │       └── notifications.py           # Notificaciones email — NO TOCAR
 │
-├── dashboard/
-│   ├── hitl_dashboard.html            # Dashboard principal (HTML/CSS/JS vanilla)
-│   ├── hitl_dashboard_streamlit.py    # Fallback técnico Streamlit (puerto 8503)
-│   └── logo.png                       # Logo del dashboard
+├── frontend/                          # Dashboard principal (Next.js + Tailwind)
+│   ├── src/                           # Código fuente React
+│   ├── public/                        # Assets estáticos
+│   └── package.json                   # Dependencias Node.js
 │
 ├── alembic/
 │   └── versions/
@@ -249,7 +247,6 @@ soberania-health/
 | GET | `/api/v1/notificaciones/stream` | SSE stream de notificaciones (token en query param) |
 | POST | `/api/v1/integraciones/doctoris/orden` | Hook Doctoris (STUB) |
 | GET | `/api/v1/integraciones/doctoris/status` | Estado integración Doctoris |
-| GET | `/dashboard` | Sirve el HTML del dashboard |
 
 ---
 

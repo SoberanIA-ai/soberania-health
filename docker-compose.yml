@@ -27,17 +27,20 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-  dashboard:
-    build: .
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
-      - "8503:8501"
+      - "3002:3000"
     environment:
       - API_BASE=http://api:8000
+      - NODE_ENV=development
     volumes:
-      - ./dashboard:/app/dashboard
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     depends_on:
       - api
-    command: streamlit run dashboard/hitl_dashboard_streamlit.py --server.address=0.0.0.0 --server.port=8501
 
   db:
     image: postgres:16-alpine

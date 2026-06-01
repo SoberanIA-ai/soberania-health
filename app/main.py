@@ -1,6 +1,7 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import audit, autorizaciones, auth, dashboard, health, notificaciones
+from app.api.routes import audit, autorizaciones, auth, health, notificaciones
 from app.integrations import doctoris_webhook
 
 app = FastAPI(
@@ -9,10 +10,17 @@ app = FastAPI(
     version="0.2.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(autorizaciones.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(notificaciones.router, prefix="/api/v1")
 app.include_router(doctoris_webhook.router, prefix="/api/v1")
-app.include_router(dashboard.router)  # GET /dashboard (sin prefijo /api/v1)
