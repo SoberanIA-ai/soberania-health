@@ -18,25 +18,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const pathname = usePathname()
 
+  // RBAC: redirect on forbidden routes — runs on every navigation
   useEffect(() => {
     if (!user) { router.replace('/'); return }
-    
-    // RBAC: Route Protection
     const r = user.rol
     if (r === 'recepcionista' && ['/dashboard', '/hitl', '/auditoria'].includes(pathname)) {
       router.replace('/autorizaciones'); return
     }
-    if (r === 'supervisor' && pathname === '/auditoria') {
+    if (r === 'supervisor' && pathname.startsWith('/auditoria')) {
       router.replace('/dashboard'); return
     }
-    if (r === 'auditor' && pathname !== '/auditoria') {
+    if (r === 'auditor' && !pathname.startsWith('/auditoria')) {
       router.replace('/auditoria'); return
     }
+  }, [user, pathname, router])
 
+  // Badge counts — mount once, then poll every 30s
+  useEffect(() => {
+    if (!user) return
     refreshCounts()
     const interval = setInterval(refreshCounts, 30_000)
     return () => clearInterval(interval)
-  }, [user, pathname, router])
+  }, [user])
 
   async function refreshCounts() {
     const [m, a] = await Promise.all([api.getMetricas(), api.getAutorizaciones()])

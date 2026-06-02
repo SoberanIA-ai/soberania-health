@@ -279,7 +279,7 @@ async def generar_solicitud(state: AuthorizationState) -> dict:
         return {
             "estado": "pendiente_hitl",
             "hitl_requerido": True,
-            "razon_hitl": f"Sin código de aseguradora para {cie10}",
+            "razon_hitl": state.get("razon_hitl") or f"Sin código de aseguradora para {cie10}",
             "audit_entries": [
                 _entry(
                     state,

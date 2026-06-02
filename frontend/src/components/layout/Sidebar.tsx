@@ -43,7 +43,7 @@ export function Sidebar({ hitlCount, urgentesCount }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 p-2">
         {NAV.map(item => {
-          if (item.roles && !item.roles.includes(user?.rol || '')) return null
+          if (!item.roles || !item.roles.includes(user?.rol || '')) return null
           const active = pathname === item.href
           const count = item.badge === 'hitl' ? hitlCount : item.badge === 'urgentes' ? urgentesCount : 0
           return (

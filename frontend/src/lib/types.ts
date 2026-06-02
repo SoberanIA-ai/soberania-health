@@ -15,10 +15,12 @@ export interface Autorizacion {
   modo: string
   numero_autorizacion?: string
   hitl_requerido: boolean
+  razon_hitl?: string
   hitl_revisado_at?: string
   hitl_revisor?: string
   hitl_decision?: string
   hitl_notas?: string
+  motivo_denegacion?: string
 }
 
 export interface Metricas {

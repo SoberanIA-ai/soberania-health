@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.schemas.autorizacion import AuditEntryResponse, AuditLogResponse
+from app.api.routes.auth import get_usuario_actual
 from app.models.autorizacion import Autorizacion
 from app.models.database import get_db
+from app.models.usuario import Usuario
 from app.utils.audit_log import AuditLogger
 
 router = APIRouter(prefix="/audit", tags=["audit"])
@@ -20,6 +22,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 async def obtener_audit_log(
     autorizacion_id: UUID,
     db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
 ):
     """Devuelve el audit log de una autorización con verificación de integridad.
 
@@ -53,6 +56,7 @@ def _tipo_actor(entry) -> str:
 async def aiact_report(
     autorizacion_id: UUID,
     db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
 ) -> dict:
     """Reporte estructurado de trazabilidad AI Act listo para auditoría.
 

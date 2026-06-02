@@ -10,10 +10,14 @@ from app.api.schemas.autorizacion import (
     HitlDecisionRequest,
     ProcesarAutorizacionRequest,
 )
+from app.api.routes.auth import get_usuario_actual
 from app.models.database import get_db
+from app.models.usuario import Usuario
 from app.services.autorizacion_service import AutorizacionService, HitlDecisionError
 
 router = APIRouter(prefix="/autorizaciones", tags=["autorizaciones"])
+
+_ROLES_HITL = {"supervisor", "admin"}
 
 
 @router.post(
@@ -24,6 +28,7 @@ router = APIRouter(prefix="/autorizaciones", tags=["autorizaciones"])
 async def procesar_autorizacion(
     payload: ProcesarAutorizacionRequest,
     db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
 ):
     service = AutorizacionService(db)
     autorizacion = await service.procesar(payload.orden_h17, modo=payload.modo)
@@ -39,7 +44,10 @@ async def procesar_autorizacion(
 
 
 @router.get("/pendientes", response_model=list[AutorizacionDetalleResponse])
-async def listar_pendientes_hitl(db: Session = Depends(get_db)):
+async def listar_pendientes_hitl(
+    db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
+):
     service = AutorizacionService(db)
     return service.listar_pendientes_hitl()
 
@@ -48,6 +56,7 @@ async def listar_pendientes_hitl(db: Session = Depends(get_db)):
 async def listar_todas(
     limit: int = 200,
     db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
 ):
     """Lista TODAS las autorizaciones (para vista Auditoría AI Act)."""
     service = AutorizacionService(db)
@@ -55,14 +64,20 @@ async def listar_todas(
 
 
 @router.get("/metricas")
-async def obtener_metricas(db: Session = Depends(get_db)) -> dict:
+async def obtener_metricas(
+    db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
+) -> dict:
     """Métricas agregadas para el dashboard."""
     service = AutorizacionService(db)
     return service.metricas()
 
 
 @router.get("/metricas-aiact")
-async def obtener_metricas_aiact(db: Session = Depends(get_db)) -> dict:
+async def obtener_metricas_aiact(
+    db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
+) -> dict:
     """Métricas de compliance AI Act para la pestaña de auditoría.
 
     - porcentaje_supervision_humana: % autorizaciones que pasaron por HITL
@@ -112,6 +127,7 @@ async def obtener_metricas_aiact(db: Session = Depends(get_db)) -> dict:
 async def obtener_autorizacion(
     autorizacion_id: UUID,
     db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
 ):
     service = AutorizacionService(db)
     autorizacion = service.obtener(autorizacion_id)
@@ -125,12 +141,15 @@ async def aplicar_decision_hitl(
     autorizacion_id: UUID,
     payload: HitlDecisionRequest,
     db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
 ):
     """Registra la decisión humana (aprobar / rechazar / mas_info) de una
     autorización en cola HITL.
 
     Audit log registra la intervención humana con hash encadenado.
     """
+    if usuario.rol not in _ROLES_HITL:
+        raise HTTPException(status_code=403, detail="Solo supervisores y administradores pueden resolver casos HITL")
     service = AutorizacionService(db)
     try:
         return service.aplicar_decision_hitl(

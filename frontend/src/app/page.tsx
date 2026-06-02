@@ -5,6 +5,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 
+function roleDefaultRoute(rol: string): string {
+  if (rol === 'auditor') return '/auditoria'
+  if (rol === 'recepcionista') return '/autorizaciones'
+  return '/dashboard'
+}
+
 export default function LoginPage() {
   const { user, login } = useAuth()
   const router = useRouter()
@@ -14,11 +20,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (user) {
-      if (user.rol === 'auditor') router.replace('/auditoria')
-      else if (user.rol === 'recepcionista') router.replace('/autorizaciones')
-      else router.replace('/dashboard')
-    }
+    if (user) router.replace(roleDefaultRoute(user.rol))
   }, [user, router])
 
   async function handleLogin() {
@@ -27,16 +29,11 @@ export default function LoginPage() {
     setError('')
     try {
       const r = await api.login(email, password)
+      if (!r) { setError('Error de conexión. ¿Está el servidor levantado?'); return }
       const data = await r.json()
       if (!r.ok) { setError(data.detail || 'Credenciales incorrectas.'); return }
       login(data.access_token, data.usuario)
-      if (data.usuario.rol === 'auditor') {
-        router.replace('/auditoria')
-      } else if (data.usuario.rol === 'recepcionista') {
-        router.replace('/autorizaciones')
-      } else {
-        router.replace('/dashboard')
-      }
+      router.replace(roleDefaultRoute(data.usuario.rol))
     } catch {
       setError('Error de conexión. ¿Está el servidor levantado?')
     } finally {

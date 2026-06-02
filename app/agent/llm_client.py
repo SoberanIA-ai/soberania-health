@@ -189,8 +189,12 @@ def _mock_guardrail(datos: dict) -> dict:
     """Valida que campos obligatorios estén presentes.
 
     Confidence alta (>0.85) si todos los obligatorios están.
-    Confidence media (0.7) si falta tipo_poliza o cie10.
+    Confidence media (0.7) si falta cie10.
     Confidence baja (<0.5) si faltan obligatorios → HITL.
+
+    Nota: tipo_poliza NO es obligatorio aquí — en producción lo provee la
+    aseguradora al consultar el número de póliza. El agente usa "basica"
+    como default seguro cuando no viene explícito en la orden.
     """
     obligatorios = [
         "paciente_nombre",
@@ -212,10 +216,6 @@ def _mock_guardrail(datos: dict) -> dict:
         confidence = 0.7
         requiere_hitl = True
         razon = "Falta procedimiento_cie10 — no podemos elegir código sin HITL"
-    elif not datos.get("paciente_tipo_poliza"):
-        confidence = 0.75
-        requiere_hitl = True
-        razon = "Falta paciente_tipo_poliza"
     else:
         confidence = 0.92
         requiere_hitl = False

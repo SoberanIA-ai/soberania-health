@@ -49,7 +49,10 @@ export function DetailDrawer({ autorizacion: a, onClose, onRefresh }: Props) {
     const notasFinal = (notas + filesTag).trim()
     const revisor = user?.email || 'dashboard_user'
     const r = await api.aplicarHITL(a.id, decision, revisor, notasFinal)
-    if (!r) return
+    if (!r) {
+      showToast('error', 'Error de conexión', 'No se pudo contactar con el servidor. Inténtalo de nuevo.')
+      return
+    }
     if (!r.ok) {
       const d = await r.json()
       showToast('error', 'Error', d.detail || 'No se pudo aplicar.')
