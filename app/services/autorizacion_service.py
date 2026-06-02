@@ -263,6 +263,7 @@ class AutorizacionService:
         autorizacion.numero_autorizacion = final.get("numero_autorizacion")
         autorizacion.solicitud_referencia = final.get("solicitud_referencia")
         autorizacion.hitl_requerido = final.get("hitl_requerido", False)
+        autorizacion.razon_hitl = final.get("razon_hitl")
 
         autorizacion.paciente_nombre = datos.get("paciente_nombre")
         autorizacion.medico_nombre = datos.get("medico_nombre")

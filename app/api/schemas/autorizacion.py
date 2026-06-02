@@ -56,6 +56,7 @@ class AutorizacionDetalleResponse(BaseModel):
     motivo_denegacion: Optional[str] = None
 
     hitl_requerido: bool = False
+    razon_hitl: Optional[str] = None
     hitl_revisado_at: Optional[datetime] = None
     hitl_revisor: Optional[str] = None
     hitl_decision: Optional[str] = None

@@ -72,6 +72,7 @@ class Autorizacion(Base):
 
     # HITL
     hitl_requerido: Mapped[bool] = mapped_column(Boolean, default=False)
+    razon_hitl: Mapped[str | None] = mapped_column(Text)
     hitl_revisado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     hitl_revisor: Mapped[str | None] = mapped_column(String(100))
     hitl_decision: Mapped[str | None] = mapped_column(String(20))

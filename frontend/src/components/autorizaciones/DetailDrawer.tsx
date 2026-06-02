@@ -135,12 +135,31 @@ export function DetailDrawer({ autorizacion: a, onClose, onRefresh }: Props) {
             </div>
           </section>
 
+          {/* Rechazo Panel */}
+          {(a.estado === 'denegado' || a.estado === 'rechazado_hitl') && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Motivo del Rechazo</h3>
+              <div className="bg-rojo-bg border border-rojo/30 rounded-xl p-4">
+                <div className="text-sm font-bold text-rojo mb-2">✕ Solicitud rechazada</div>
+                <div className="text-sm text-gray-700">
+                  {a.estado === 'denegado' 
+                    ? (a.motivo_denegacion || 'La aseguradora ha denegado la solicitud sin especificar motivo.')
+                    : (a.hitl_notas || 'Rechazado por el supervisor médico sin añadir notas específicas.')}
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* HITL Panel */}
           {a.estado === 'pendiente_hitl' && (
             <section>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Revisión HITL requerida</h3>
               <div className="bg-amber-50 border border-yellow-200 rounded-xl p-4">
                 <div className="text-sm font-bold text-amber-800 mb-2">⚠️ Este caso requiere revisión humana</div>
+                <div className="text-sm text-amber-900 bg-amber-100/50 px-3 py-2 rounded-lg mb-3 border border-amber-200/50">
+                  <span className="font-semibold block mb-0.5">Mensaje del Agente IA:</span>
+                  {a.razon_hitl || 'El sistema de IA ha marcado este caso para revisión.'}
+                </div>
                 <div className="text-xs text-gray-600 bg-white px-3 py-2 rounded-lg mb-3">
                   Confidence del agente: {conf !== null ? `${conf}%` : 'N/D'} (umbral HITL: &lt;80%)
                 </div>
