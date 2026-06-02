@@ -183,23 +183,31 @@ async def verificar_cobertura(state: AuthorizationState) -> dict:
         "estado": "verificado",
     }
 
+    razon_hitl = state.get("razon_hitl", "")
+
     if canonical is None:
         razon_decision = (
             f"Aseguradora '{aseguradora_raw}' NO soportada por el MVP. "
             f"Safe-default → HITL."
         )
+        if not razon_hitl: razon_hitl = f"La aseguradora '{aseguradora_raw}' no está soportada o no se reconoce."
     elif not cubierto:
         razon_decision = (
             f"Aseguradora {canonical} reconocida. Procedimiento "
             f"'{datos.get('procedimiento_cie10') or '?'}' NO en catálogo "
             f"(DATA_STATUS=SIMULADO). Safe-default → HITL."
         )
+        if not razon_hitl: razon_hitl = f"Procedimiento no cubierto o no validado para la póliza."
     else:
         razon_decision = (
             f"Aseguradora {canonical} reconocida. Procedimiento "
             f"'{datos.get('procedimiento_cie10')}' en catálogo. "
             f"Confidence combinada {confidence_combinada:.2f}."
         )
+        if hitl and not razon_hitl and confidence.requiere_hitl(confidence_combinada):
+            razon_hitl = f"Confianza del IA demasiado baja ({confidence_combinada:.0%})."
+
+    delta["razon_hitl"] = razon_hitl
 
     delta["audit_entries"] = [
         _entry(
