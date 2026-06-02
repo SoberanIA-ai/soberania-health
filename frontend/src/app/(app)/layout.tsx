@@ -23,8 +23,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     
     // RBAC: Route Protection
     const r = user.rol
-    if (r === 'recepcionista' && ['/hitl', '/urgentes', '/auditoria'].includes(pathname)) {
-      router.replace('/dashboard'); return
+    if (r === 'recepcionista' && ['/dashboard', '/hitl', '/auditoria'].includes(pathname)) {
+      router.replace('/autorizaciones'); return
     }
     if (r === 'supervisor' && pathname === '/auditoria') {
       router.replace('/dashboard'); return

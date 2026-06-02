@@ -16,6 +16,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (user) {
       if (user.rol === 'auditor') router.replace('/auditoria')
+      else if (user.rol === 'recepcionista') router.replace('/autorizaciones')
       else router.replace('/dashboard')
     }
   }, [user, router])
@@ -31,6 +32,8 @@ export default function LoginPage() {
       login(data.access_token, data.usuario)
       if (data.usuario.rol === 'auditor') {
         router.replace('/auditoria')
+      } else if (data.usuario.rol === 'recepcionista') {
+        router.replace('/autorizaciones')
       } else {
         router.replace('/dashboard')
       }
