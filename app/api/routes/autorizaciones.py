@@ -9,6 +9,7 @@ from app.api.schemas.autorizacion import (
     AutorizacionResumenResponse,
     HitlDecisionRequest,
     ProcesarAutorizacionRequest,
+    ReenviarRequest,
 )
 from app.api.routes.auth import get_usuario_actual
 from app.models.database import get_db
@@ -164,4 +165,30 @@ async def aplicar_decision_hitl(
             raise HTTPException(status_code=404, detail=codigo)
         if codigo == "ya_decidido":
             raise HTTPException(status_code=409, detail=codigo)
+        raise HTTPException(status_code=400, detail=codigo)
+
+
+@router.post("/{autorizacion_id}/reenviar", response_model=AutorizacionDetalleResponse)
+async def reenviar_con_documentacion(
+    autorizacion_id: UUID,
+    payload: ReenviarRequest,
+    db: Session = Depends(get_db),
+    _usuario: Usuario = Depends(get_usuario_actual),
+):
+    """Reenvía al agente una autorización en estado informacion_adicional_requerida.
+
+    La recepcionista o el médico aportan la documentación solicitada por el
+    supervisor; el agente reprocesa el caso sobre el mismo registro.
+    """
+    service = AutorizacionService(db)
+    try:
+        return await service.reenviar_con_documentacion(
+            autorizacion_id=autorizacion_id,
+            notas_adicionales=payload.notas_adicionales,
+            archivos_adjuntos=payload.archivos_adjuntos,
+        )
+    except HitlDecisionError as exc:
+        codigo = str(exc)
+        if codigo == "autorizacion_no_encontrada":
+            raise HTTPException(status_code=404, detail=codigo)
         raise HTTPException(status_code=400, detail=codigo)

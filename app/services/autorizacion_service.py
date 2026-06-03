@@ -247,6 +247,89 @@ class AutorizacionService:
 
         return autorizacion
 
+    async def reenviar_con_documentacion(
+        self,
+        autorizacion_id: UUID | str,
+        notas_adicionales: str = "",
+        archivos_adjuntos: list[str] | None = None,
+    ) -> Autorizacion:
+        """Reenvía una autorización en estado informacion_adicional_requerida.
+
+        Reconstruye la orden original con los documentos aportados y vuelve
+        a correr el agente sobre el MISMO registro (no crea uno nuevo).
+        El audit log se encadena sobre el existente para mantener trazabilidad.
+        """
+        autorizacion = self.obtener(autorizacion_id)
+        if autorizacion is None:
+            raise HitlDecisionError("autorizacion_no_encontrada")
+        if autorizacion.estado != "informacion_adicional_requerida":
+            raise HitlDecisionError("estado_invalido_para_reenvio")
+
+        archivos = archivos_adjuntos or []
+
+        # Reconstruir orden con el contexto adicional
+        orden = self._reconstruir_orden(autorizacion, notas_adicionales, archivos)
+
+        # Resetear campos HITL para permitir reprocesamiento limpio
+        autorizacion.hitl_decision = None
+        autorizacion.hitl_revisor = None
+        autorizacion.hitl_revisado_at = None
+        autorizacion.hitl_requerido = False
+        autorizacion.razon_hitl = None
+        autorizacion.estado = "procesando"
+        self.db.flush()
+
+        # Correr el agente sobre el mismo autorizacion_id
+        grafo = get_grafo()
+        final = await grafo.ainvoke(
+            {
+                "orden_raw": orden,
+                "modo": autorizacion.modo,
+                "autorizacion_id": str(autorizacion.id),
+            }
+        )
+
+        # Encadenar audit entries al log existente
+        entries = final.get("audit_entries") or []
+        self.audit_logger.persistir_cadena(str(autorizacion.id), entries)
+
+        # Actualizar el registro existente con el resultado
+        self._aplicar_resultado(autorizacion, final)
+        self.db.commit()
+        self.db.refresh(autorizacion)
+
+        from app.api.routes.notificaciones import emitir_evento
+        await emitir_evento("autorizacion_procesada", {
+            "autorizacion_id": str(autorizacion.id),
+            "estado": autorizacion.estado,
+            "paciente": autorizacion.paciente_nombre or "",
+            "aseguradora": autorizacion.aseguradora or "",
+        })
+
+        return autorizacion
+
+    @staticmethod
+    def _reconstruir_orden(
+        autorizacion: Autorizacion,
+        notas_adicionales: str,
+        archivos: list[str],
+    ) -> str:
+        docs_str = ", ".join(archivos) if archivos else "documentación adjunta"
+        partes = [
+            f"Paciente: {autorizacion.paciente_nombre or ''}",
+            f"Aseguradora: {autorizacion.aseguradora or ''}",
+            f"Póliza: {autorizacion.poliza_numero or ''}",
+            f"Procedimiento: {autorizacion.procedimiento_descripcion or ''}",
+            f"Médico: {autorizacion.medico_nombre or ''}",
+            f"DOCUMENTACION_APORTADA: {docs_str}",
+            f"REENVIO_SOLICITUD_INFO: true",
+        ]
+        if notas_adicionales:
+            partes.append(f"NOTAS_ADICIONALES: {notas_adicionales}")
+        if autorizacion.urgencia == "urgente":
+            partes.append("URGENTE")
+        return "\n".join(partes)
+
     @staticmethod
     def _aplicar_resultado(autorizacion: Autorizacion, final: dict) -> None:
         """Mapea el state final del grafo a la fila Autorizacion."""

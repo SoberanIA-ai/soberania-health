@@ -7,7 +7,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { BadgeEstado } from '@/components/ui/Badge'
 import { ConfidenceBar, confBarColor } from '@/components/ui/ConfidenceBar'
 import { Spinner } from '@/components/ui/Spinner'
-import { capitalize, fmtDateTime, fmtFileSize, iniciales, avatarColor } from '@/lib/utils'
+import { capitalize, fmtDateTime, fmtFileSize } from '@/lib/utils'
 
 interface Props {
   autorizacion: Autorizacion | null
@@ -22,10 +22,15 @@ export function DetailDrawer({ autorizacion: a, onClose, onRefresh }: Props) {
   const { showToast } = useToast()
   const [audit, setAudit] = useState<AuditLog | null>(null)
   const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
   const [files, setFiles] = useState<HitlFile[]>([])
   const [notas, setNotas] = useState('')
   const [dragging, setDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const reenvioFileRef = useRef<HTMLInputElement>(null)
+  const [reenvioFiles, setReenvioFiles] = useState<HitlFile[]>([])
+  const [reenvioNotas, setReenvioNotas] = useState('')
+  const [renvioDrawgging, setRenvioDragging] = useState(false)
 
   useEffect(() => {
     if (!a) return
@@ -62,6 +67,51 @@ export function DetailDrawer({ autorizacion: a, onClose, onRefresh }: Props) {
     showToast('success', 'HITL actualizado', msgs[decision] || '')
     onClose()
     onRefresh()
+  }
+
+  async function reenviarAlAgente() {
+    if (!a) return
+    setSending(true)
+    try {
+      const r = await api.reenviar(a.id, reenvioNotas, reenvioFiles.map(f => f.name))
+      if (!r) { showToast('error', 'Error de conexión', 'No se pudo contactar con el servidor.'); return }
+      if (!r.ok) {
+        const d = await r.json()
+        showToast('error', 'Error', d.detail || 'No se pudo reenviar.'); return
+      }
+      const updated = await r.json()
+      const estadoMsg: Record<string, string> = {
+        autorizado: 'El agente ha autorizado la solicitud.',
+        denegado: 'El agente ha denegado la solicitud.',
+        pendiente_hitl: 'El caso vuelve a cola HITL para revisión con la documentación aportada.',
+      }
+      showToast('success', 'Reenviado al agente', estadoMsg[updated.estado] || `Estado: ${updated.estado}`)
+      onClose()
+      onRefresh()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function onReenvioFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const newFiles = Array.from(e.target.files || [])
+    setReenvioFiles(prev => {
+      const merged = [...prev]
+      newFiles.forEach(f => { if (!merged.find(x => x.name === f.name)) merged.push({ name: f.name, size: f.size, type: f.type }) })
+      return merged
+    })
+    e.target.value = ''
+  }
+
+  function onReenvioDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setRenvioDragging(false)
+    const newFiles = Array.from(e.dataTransfer.files)
+    setReenvioFiles(prev => {
+      const merged = [...prev]
+      newFiles.forEach(f => { if (!merged.find(x => x.name === f.name)) merged.push({ name: f.name, size: f.size, type: f.type }) })
+      return merged
+    })
   }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -149,6 +199,80 @@ export function DetailDrawer({ autorizacion: a, onClose, onRefresh }: Props) {
                     ? (a.motivo_denegacion || 'La aseguradora ha denegado la solicitud sin especificar motivo.')
                     : (a.hitl_notas || 'Rechazado por el supervisor médico sin añadir notas específicas.')}
                 </div>
+              </div>
+            </section>
+          )}
+
+          {/* Información adicional requerida */}
+          {a.estado === 'informacion_adicional_requerida' && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Documentación requerida</h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                <div className="text-sm font-bold text-blue-800">📋 El supervisor solicita documentación adicional</div>
+
+                {/* Qué pidió el supervisor */}
+                <div className="bg-white border border-blue-100 rounded-lg p-3">
+                  <div className="text-xs font-semibold text-gray-500 mb-1">
+                    Solicitado por {a.hitl_revisor || 'supervisor'}:
+                  </div>
+                  <div className="text-sm text-gray-800">
+                    {a.hitl_notas || 'Documentación clínica adicional para completar la solicitud.'}
+                  </div>
+                </div>
+
+                {/* Upload */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">📎 Adjuntar documentación</div>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${renvioDrawgging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}
+                    onClick={() => reenvioFileRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); setRenvioDragging(true) }}
+                    onDragLeave={() => setRenvioDragging(false)}
+                    onDrop={onReenvioDrop}
+                  >
+                    <input ref={reenvioFileRef} type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xml" onChange={onReenvioFileChange} />
+                    <div className="text-xs text-gray-500">
+                      <strong className="text-blue-600">Haz clic o arrastra archivos</strong><br />
+                      PDF, Word, imágenes, XML
+                    </div>
+                  </div>
+                  {reenvioFiles.length > 0 && (
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      {reenvioFiles.map(f => {
+                        const icon = f.type.startsWith('image') ? '🖼️' : f.name.endsWith('.pdf') ? '📄' : '📎'
+                        return (
+                          <div key={f.name} className="flex items-center gap-2 px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs">
+                            <span>{icon}</span>
+                            <span className="flex-1 font-medium truncate">{f.name}</span>
+                            <span className="text-gray-400 shrink-0">{fmtFileSize(f.size)}</span>
+                            <button onClick={() => setReenvioFiles(prev => prev.filter(x => x.name !== f.name))} className="text-rojo hover:opacity-70 pl-1">✕</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Notas adicionales */}
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Notas para el agente (opcional)</label>
+                  <textarea
+                    value={reenvioNotas}
+                    onChange={e => setReenvioNotas(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none min-h-[50px] font-sans focus:border-blue-400 outline-none"
+                    placeholder="Añade contexto clínico adicional…"
+                  />
+                </div>
+
+                {/* Botón reenviar */}
+                <button
+                  onClick={reenviarAlAgente}
+                  disabled={sending}
+                  className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {sending && <Spinner size={14} />}
+                  {sending ? 'Enviando al agente…' : '🤖 Reenviar al agente'}
+                </button>
               </div>
             </section>
           )}

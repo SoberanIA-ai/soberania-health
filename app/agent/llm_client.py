@@ -167,6 +167,7 @@ def _mock_parse(orden_raw: str) -> dict:
     medico_nombre = _extraer_medico_hl7(orden_raw) or _extraer_medico_libre(orden_raw)
     poliza_numero = _extraer_poliza_hl7(orden_raw) or _extraer_poliza_libre(orden_raw)
     urgente = "urgente" in texto_lower or "urgent" in texto_lower
+    es_reenvio = "reenvio_solicitud_info: true" in texto_lower
 
     return {
         "paciente_nombre": paciente_nombre,
@@ -182,6 +183,7 @@ def _mock_parse(orden_raw: str) -> dict:
         "urgente": urgente,
         "diagnostico_principal": None,
         "notas_clinicas": None,
+        "es_reenvio": es_reenvio,
     }
 
 
@@ -196,6 +198,18 @@ def _mock_guardrail(datos: dict) -> dict:
     aseguradora al consultar el número de póliza. El agente usa "basica"
     como default seguro cuando no viene explícito en la orden.
     """
+    # Reenvíos con documentación aportada: el guardrail da paso libre —
+    # la documentación adjunta resuelve la incertidumbre del primer intento.
+    if datos.get("es_reenvio"):
+        return {
+            "valido": True,
+            "campos_faltantes": [],
+            "inconsistencias": [],
+            "confidence": 0.87,
+            "requiere_hitl": False,
+            "razon_hitl": "",
+        }
+
     obligatorios = [
         "paciente_nombre",
         "paciente_aseguradora",

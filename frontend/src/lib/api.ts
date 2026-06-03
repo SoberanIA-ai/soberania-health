@@ -81,4 +81,11 @@ export const api = {
       body: JSON.stringify({ decision, revisor, notas }),
     })
   },
+
+  async reenviar(id: string, notasAdicionales: string, archivosAdjuntos: string[]) {
+    return apiFetch(`/api/v1/autorizaciones/${id}/reenviar`, {
+      method: 'POST',
+      body: JSON.stringify({ notas_adicionales: notasAdicionales, archivos_adjuntos: archivosAdjuntos }),
+    })
+  },
 }

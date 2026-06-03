@@ -89,6 +89,11 @@ class HitlDecisionRequest(BaseModel):
     revisor: str = "anonimo"
 
 
+class ReenviarRequest(BaseModel):
+    notas_adicionales: str = ""
+    archivos_adjuntos: list[str] = []
+
+
 class AuditLogResponse(BaseModel):
     autorizacion_id: UUID
     total_entries: int
