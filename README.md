@@ -8,8 +8,7 @@ españolas.
 profesionales). Interlocutor técnico: Xavier Tarragó Bonfill, Director de
 Transformación Digital.
 
-**Stack:** FastAPI · LangGraph · Mistral API · PostgreSQL · Streamlit ·
-Playwright · Langfuse · Docker.
+**Stack:** FastAPI · LangGraph · Mistral API · PostgreSQL · Next.js 14 · Langfuse · Docker.
 
 ---
 
@@ -23,40 +22,43 @@ docker compose exec api alembic upgrade head
 
 Servicios:
 
-| Servicio       | URL local              |
-|----------------|-----------------------|
-| API            | http://localhost:8002 |
-| API docs       | http://localhost:8002/docs |
-| Dashboard HITL | http://localhost:8503 |
-| Langfuse       | http://localhost:3001 |
+| Servicio         | URL local                  |
+|------------------|---------------------------|
+| Dashboard        | http://localhost:3002      |
+| API              | http://localhost:8002      |
+| API docs         | http://localhost:8002/docs |
+| Langfuse         | http://localhost:3000      |
 
-Los puertos están desplazados (8002/8503/3001 en lugar de 8000/8501/3000)
-para no chocar con otros servicios locales. En producción / demo a HM se
-mapean a los nominales.
+---
+
+## Usuarios de demo
+
+| Rol           | Email                            | Contraseña     |
+|---------------|----------------------------------|----------------|
+| Admin         | isabella.cristancho@soberania.eu | soberania2026  |
+| Recepcionista | recepcion@hmhospitales.es        | recepcion2026  |
+| Supervisor    | supervisor@hmhospitales.es       | supervisor2026 |
+| Auditor       | auditor@hmhospitales.es          | auditor2026    |
 
 ---
 
 ## Demo en 10 minutos
 
 ```bash
-docker compose exec api python scripts/run_demo.py --reset --pause
+# Cargar ~50 casos de demo con todos los estados posibles
+docker compose exec api python scripts/seed_dashboard.py --reset
 ```
 
-Procesa 3 casos secuenciales:
+Abre http://localhost:3002 y entra con cualquier usuario de demo.
 
-1. **Sanitas — happy path**: RM rodilla derecha, póliza Más Salud Plus
-   → autorizado. Muestra el flujo end-to-end con cálculo Python puro.
-2. **Adeslas — HITL**: catálogo simulado vacío hasta Fase 0, el sistema
-   escala a revisión humana (safe-default). Supervisor decide en
-   `http://localhost:8503`.
-3. **Datos faltantes — HITL**: el guardrail detecta médico ausente,
-   confidence cae a 0.3, se dispara HITL.
+Procesa un caso nuevo desde la pantalla Autorizaciones → **"+ Nueva autorización"**:
 
-Cada caso muestra el audit log con cadena SHA256 íntegra, distinguiendo
-acciones del agente vs intervención humana (🧑).
+1. **Sanitas + procedimiento conocido** → autorizado automáticamente.
+2. **Adeslas** → el agente usa "básica" como default y procesa con cobertura del catálogo.
+3. **Aseguradora "Otra"** → HITL. El supervisor revisa, puede pedir más info,
+   y la recepcionista reenvía con documentación adjunta → el agente reprocesa.
 
-Sin `--pause` corre los 3 casos seguidos. Con `--reset` limpia la DB
-antes para empezar limpia.
+Cada caso tiene audit log con cadena SHA256 íntegra visible en el panel Auditoría AI Act.
 
 ---
 
@@ -124,9 +126,9 @@ Las 6 fases del handoff sec 16 están completadas:
 | 1    | Calculadores Python puros            | ✓      |
 | 2    | Agente LangGraph end-to-end mock     | ✓      |
 | 3    | Audit log SHA256 encadenado          | ✓      |
-| 4    | Dashboard HITL Streamlit             | ✓      |
+| 4    | Frontend Next.js con RBAC completo   | ✓      |
 | 5    | Test suite E2E (30 casos)            | ✓      |
-| 6    | Demo ready                           | ✓      |
+| 6    | Demo ready — flujo más info completo | ✓      |
 
 ---
 
@@ -134,11 +136,19 @@ Las 6 fases del handoff sec 16 están completadas:
 
 ```
 GET  /api/v1/health                            health check
-POST /api/v1/autorizaciones/procesar           procesar orden HL7 / texto
-GET  /api/v1/autorizaciones/{id}               detalle de una autorización
-GET  /api/v1/autorizaciones/pendientes         cola HITL
-POST /api/v1/autorizaciones/{id}/hitl          decisión humana (aprobar/rechazar/mas_info)
-GET  /api/v1/audit/{autorizacion_id}           audit log + verificación integridad
+POST /api/v1/autorizaciones/procesar           procesar orden HL7 / texto  [auth]
+GET  /api/v1/autorizaciones/                   lista todas las autorizaciones  [auth]
+GET  /api/v1/autorizaciones/{id}               detalle de una autorización  [auth]
+GET  /api/v1/autorizaciones/pendientes         cola HITL  [auth]
+GET  /api/v1/autorizaciones/metricas           métricas para dashboard  [auth]
+GET  /api/v1/autorizaciones/metricas-aiact     métricas AI Act compliance  [auth]
+POST /api/v1/autorizaciones/{id}/hitl          decisión humana  [auth, supervisor/admin]
+POST /api/v1/autorizaciones/{id}/reenviar      reenviar con documentación adjunta  [auth]
+GET  /api/v1/audit/{autorizacion_id}           audit log + verificación integridad  [auth]
+GET  /api/v1/audit/{autorizacion_id}/aiact-report  reporte AI Act estructurado  [auth]
+POST /api/v1/auth/login                        autenticación → JWT
+GET  /api/v1/auth/me                           datos del usuario autenticado  [auth]
+GET  /api/v1/notificaciones/stream             SSE en tiempo real  [token en query]
 ```
 
 ## Arquitectura

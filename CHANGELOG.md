@@ -6,6 +6,37 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+## [0.3.0] — Next.js Frontend + RBAC + Flujo Más Info (Junio 2026)
+
+### Added
+- **Frontend Next.js 14** (`frontend/`): reemplaza el dashboard HTML estático. App Router, TypeScript, Tailwind CSS, Recharts. Cinco secciones: Resumen, Autorizaciones, Cola HITL, Urgentes, Auditoría AI Act.
+- **RBAC completo frontend**: la barra lateral oculta las secciones según el rol; el layout protege rutas con redirect automático; login redirige a la página de inicio por rol.
+- **RBAC backend**: todos los endpoints de autorizaciones y audit requieren JWT válido (`Depends(get_usuario_actual)`). El endpoint HITL restringe acceso a roles `supervisor` y `admin`.
+- **Flujo "Más información" completo**: endpoint `POST /autorizaciones/{id}/reenviar`. La recepcionista ve qué documentación pidió el supervisor, sube archivos y reenvía al agente. El agente reprocesa sobre el mismo registro encadenando el audit log.
+- **Panel `informacion_adicional_requerida`** en el DrawerDetalle: muestra el mensaje del supervisor, upload de archivos y botón "Reenviar al agente".
+- **`razon_hitl`** en la tabla `autorizaciones`: el agente escribe el motivo exacto de HITL; el drawer lo muestra al supervisor.
+- **Toast de error** cuando `aplicarHITL` falla por red.
+- Campo `roleDefaultRoute()` compartido en `page.tsx` para eliminar la duplicación de la lógica de redirección por rol.
+
+### Changed
+- `app/agent/llm_client.py`: eliminado el bloqueo a HITL por `paciente_tipo_poliza` faltante (lo provee la aseguradora, no la recepcionista). El agente usa `"basica"` como default.
+- `app/agent/llm_client.py`: guardrail detecta `REENVIO_SOLICITUD_INFO: true` y da paso libre (confidence 0.87) para reenvíos con documentación adjunta.
+- `app/agent/nodes.py`: `generar_solicitud` preserva `razon_hitl` existente en lugar de sobreescribirla; `verificar_cobertura` escribe la razón exacta con guard `if not razon_hitl`.
+- `frontend/src/components/layout/Sidebar.tsx`: guard de roles cambiado a deny-by-default (`!item.roles || ...`).
+- `frontend/src/app/(app)/layout.tsx`: `refreshCounts` separado en su propio `useEffect([user])` para evitar 2 llamadas API extra en cada navegación.
+- `docker-compose.yml`: servicio `dashboard` (Streamlit) reemplazado por `frontend` (Next.js, puerto 3002).
+
+### Fixed
+- `app/main.py`: añadido `CORSMiddleware` para permitir llamadas directas del browser al backend.
+- Rutas RBAC usan `startsWith('/auditoria')` para que funcionen correctamente con sub-rutas futuras.
+- `frontend/src/lib/types.ts`: añadidos `razon_hitl` y `motivo_denegacion` al tipo `Autorizacion`.
+
+### Technical
+- Migración Alembic `e08d6087a1f6_add_razon_hitl`: añade columna `razon_hitl TEXT` a tabla `autorizaciones`.
+- `frontend/.dockerignore`: excluye `node_modules` y `.next` del contexto de build.
+
+---
+
 ## [0.2.0] — Dashboard v2 (Fase A — Isabella Cristancho)
 
 ### Added
