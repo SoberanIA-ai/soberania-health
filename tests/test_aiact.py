@@ -37,7 +37,7 @@ def limpiar_db():
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, auth_admin):
     import app.agent.nodes as nodes_mod
     from app.conectores.mock_connector import MockConnector
 

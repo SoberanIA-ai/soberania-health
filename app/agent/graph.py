@@ -12,6 +12,20 @@ from app.agent import nodes
 from app.agent.state import AuthorizationState
 
 
+def _despues_de_parsear(state: AuthorizationState) -> str:
+    """Si el LLM/guardrail falló, terminamos en error_procesamiento."""
+    if state.get("estado") == "error_procesamiento":
+        return "fin"
+    return "verificar_cobertura"
+
+
+def _despues_de_enviar(state: AuthorizationState) -> str:
+    """Si el conector falló, terminamos en error_procesamiento."""
+    if state.get("estado") == "error_procesamiento":
+        return "fin"
+    return "monitorizar_respuesta"
+
+
 def _despues_de_verificar(state: AuthorizationState) -> str:
     if state.get("hitl_requerido"):
         return "hitl_check"
@@ -45,7 +59,11 @@ def construir_grafo():
     graph.add_node("notificar_resultado", nodes.notificar_resultado)
 
     graph.set_entry_point("parse_orden_medica")
-    graph.add_edge("parse_orden_medica", "verificar_cobertura")
+    graph.add_conditional_edges(
+        "parse_orden_medica",
+        _despues_de_parsear,
+        {"fin": END, "verificar_cobertura": "verificar_cobertura"},
+    )
 
     graph.add_conditional_edges(
         "verificar_cobertura",
@@ -62,7 +80,11 @@ def construir_grafo():
         _despues_de_generar,
         {"fin": END, "enviar_solicitud": "enviar_solicitud"},
     )
-    graph.add_edge("enviar_solicitud", "monitorizar_respuesta")
+    graph.add_conditional_edges(
+        "enviar_solicitud",
+        _despues_de_enviar,
+        {"fin": END, "monitorizar_respuesta": "monitorizar_respuesta"},
+    )
     graph.add_edge("monitorizar_respuesta", "procesar_respuesta")
     graph.add_edge("procesar_respuesta", "notificar_resultado")
     graph.add_edge("notificar_resultado", END)

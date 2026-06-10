@@ -91,3 +91,21 @@ async def me(usuario: Usuario = Depends(get_usuario_actual)):
         nombre=usuario.nombre,
         rol=usuario.rol,
     )
+
+
+def require_roles(*roles: str):
+    """Dependencia FastAPI: exige que el usuario autenticado tenga uno de `roles`.
+
+    Uso: `_usuario: Usuario = Depends(require_roles("admin", "supervisor"))`.
+    Devuelve 403 si el usuario está autenticado pero no tiene el rol requerido.
+    """
+
+    def _verificar(usuario: Usuario = Depends(get_usuario_actual)) -> Usuario:
+        if usuario.rol not in roles:
+            raise HTTPException(
+                status_code=403,
+                detail="No tiene permisos para realizar esta operación",
+            )
+        return usuario
+
+    return _verificar

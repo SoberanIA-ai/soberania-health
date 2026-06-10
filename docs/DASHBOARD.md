@@ -78,6 +78,7 @@ El sidebar muestra solo las secciones a las que tiene acceso cada rol.
 | **Rechazada** | Rojo | La aseguradora ha denegado la autorización. |
 | **Rechazado HITL** | Rojo | Un supervisor ha rechazado el caso manualmente. |
 | **En proceso** | Gris | El sistema está procesando la solicitud. |
+| **Error de procesamiento** | Rojo oscuro | Ha fallado un servicio externo (el asistente de IA o el portal de la aseguradora) al procesar el caso. No se ha perdido información: el caso pasa automáticamente a Cola HITL para que un supervisor lo revise y, si hace falta, lo reenvíe. |
 
 ---
 

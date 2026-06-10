@@ -96,23 +96,44 @@ estructura del código no cambia — solo los dicts `CODIGOS`.
 
 ---
 
+## Configuración / Seguridad
+
+Variables relevantes en `.env` (ver `.env.example`):
+
+| Variable             | Descripción                                                              |
+|----------------------|---------------------------------------------------------------------------|
+| `ENVIRONMENT`        | `development` (default) o `production`. En `production`, la app **no arranca** si `JWT_SECRET_KEY` o `DATABASE_URL` siguen en sus valores de demo. |
+| `CORS_ORIGINS`       | Orígenes permitidos para el frontend, separados por coma. Reemplaza el antiguo `allow_origins=["*"]`. |
+| `JWT_SECRET_KEY` / `JWT_EXPIRE_MINUTES` | Firma y expiración del token de sesión (8h por defecto). |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | Tamaño del pool de conexiones SQLAlchemy. |
+
+Si una llamada externa (LLM o conector de aseguradora) falla, la autorización
+pasa a estado `error_procesamiento`, queda registrada en el audit log y se
+marca `hitl_requerido=True` para revisión humana — nunca se pierde el rastro
+ni se devuelve un 500 sin más.
+
 ## Tests
 
 ```bash
-docker compose exec api pytest                            # 107/107
-docker compose exec api pytest --cov=app --cov-report=term # cobertura 94%
+docker compose exec api pytest                            # 229/229
+docker compose exec api pytest --cov=app --cov-report=term
 ```
 
 Suite por fase:
 
 | Suite | Tests | Cobertura |
 |-------|-------|-----------|
-| `test_health.py`       | 2   | endpoint health |
-| `test_calculadores.py` | 51  | unitario por función + AST check Python puro |
-| `test_agent.py`        | 5   | flujo LangGraph end-to-end mock |
-| `test_audit.py`        | 8   | SHA256 encadenado + detección de manipulación |
-| `test_hitl.py`         | 9   | endpoint decisión humana |
-| `test_e2e.py`          | 32  | 30 casos del handoff sec 13 + 2 estructura |
+| `test_health.py`         | 2   | endpoint health |
+| `test_calculadores.py`   | 51  | unitario por función + AST check Python puro |
+| `test_agent.py`          | 5   | flujo LangGraph end-to-end mock |
+| `test_audit.py`          | 8   | SHA256 encadenado + detección de manipulación |
+| `test_hitl.py`           | 9   | endpoint decisión humana |
+| `test_e2e.py`            | 32  | 30 casos del handoff sec 13 + 2 estructura |
+| `test_aiact.py`          | 11  | compliance AI Act, audit enriquecido, métricas |
+| `test_auth.py`           | 10  | login JWT, roles, integración Doctoris |
+| `test_rbac.py`           | 20  | 403/200 por rol en endpoints reforzados |
+| `test_error_handling.py` | 3   | fallo de LLM/conector → `error_procesamiento` |
+| `test_demo_extraction.py`| 78  | extracción de datos sobre casos de demo |
 
 ---
 
@@ -136,14 +157,14 @@ Las 6 fases del handoff sec 16 están completadas:
 
 ```
 GET  /api/v1/health                            health check
-POST /api/v1/autorizaciones/procesar           procesar orden HL7 / texto  [auth]
+POST /api/v1/autorizaciones/procesar           procesar orden HL7 / texto  [auth, recepcionista/supervisor/admin]
 GET  /api/v1/autorizaciones/                   lista todas las autorizaciones  [auth]
 GET  /api/v1/autorizaciones/{id}               detalle de una autorización  [auth]
-GET  /api/v1/autorizaciones/pendientes         cola HITL  [auth]
+GET  /api/v1/autorizaciones/pendientes         cola HITL  [auth, supervisor/admin]
 GET  /api/v1/autorizaciones/metricas           métricas para dashboard  [auth]
-GET  /api/v1/autorizaciones/metricas-aiact     métricas AI Act compliance  [auth]
+GET  /api/v1/autorizaciones/metricas-aiact     métricas AI Act compliance  [auth, auditor/admin]
 POST /api/v1/autorizaciones/{id}/hitl          decisión humana  [auth, supervisor/admin]
-POST /api/v1/autorizaciones/{id}/reenviar      reenviar con documentación adjunta  [auth]
+POST /api/v1/autorizaciones/{id}/reenviar      reenviar con documentación adjunta  [auth, recepcionista/supervisor/admin]
 GET  /api/v1/audit/{autorizacion_id}           audit log + verificación integridad  [auth]
 GET  /api/v1/audit/{autorizacion_id}/aiact-report  reporte AI Act estructurado  [auth]
 POST /api/v1/auth/login                        autenticación → JWT

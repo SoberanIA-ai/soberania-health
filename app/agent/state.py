@@ -50,6 +50,7 @@ class AuthorizationState(TypedDict, total=False):
         "denegado",
         "informacion_adicional",
         "error",
+        "error_procesamiento",
     ]
 
     # Resultado

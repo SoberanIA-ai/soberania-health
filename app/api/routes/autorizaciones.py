@@ -11,14 +11,16 @@ from app.api.schemas.autorizacion import (
     ProcesarAutorizacionRequest,
     ReenviarRequest,
 )
-from app.api.routes.auth import get_usuario_actual
+from app.api.routes.auth import get_usuario_actual, require_roles
 from app.models.database import get_db
 from app.models.usuario import Usuario
 from app.services.autorizacion_service import AutorizacionService, HitlDecisionError
 
 router = APIRouter(prefix="/autorizaciones", tags=["autorizaciones"])
 
-_ROLES_HITL = {"supervisor", "admin"}
+_ROLES_HITL = ("supervisor", "admin")
+_ROLES_OPERATIVOS = ("recepcionista", "supervisor", "admin")
+_ROLES_AUDITORIA = ("auditor", "admin")
 
 
 @router.post(
@@ -29,7 +31,7 @@ _ROLES_HITL = {"supervisor", "admin"}
 async def procesar_autorizacion(
     payload: ProcesarAutorizacionRequest,
     db: Session = Depends(get_db),
-    _usuario: Usuario = Depends(get_usuario_actual),
+    _usuario: Usuario = Depends(require_roles(*_ROLES_OPERATIVOS)),
 ):
     service = AutorizacionService(db)
     autorizacion = await service.procesar(payload.orden_h17, modo=payload.modo)
@@ -47,7 +49,7 @@ async def procesar_autorizacion(
 @router.get("/pendientes", response_model=list[AutorizacionDetalleResponse])
 async def listar_pendientes_hitl(
     db: Session = Depends(get_db),
-    _usuario: Usuario = Depends(get_usuario_actual),
+    _usuario: Usuario = Depends(require_roles(*_ROLES_HITL)),
 ):
     service = AutorizacionService(db)
     return service.listar_pendientes_hitl()
@@ -77,7 +79,7 @@ async def obtener_metricas(
 @router.get("/metricas-aiact")
 async def obtener_metricas_aiact(
     db: Session = Depends(get_db),
-    _usuario: Usuario = Depends(get_usuario_actual),
+    _usuario: Usuario = Depends(require_roles(*_ROLES_AUDITORIA)),
 ) -> dict:
     """Métricas de compliance AI Act para la pestaña de auditoría.
 
@@ -142,15 +144,13 @@ async def aplicar_decision_hitl(
     autorizacion_id: UUID,
     payload: HitlDecisionRequest,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_usuario_actual),
+    _usuario: Usuario = Depends(require_roles(*_ROLES_HITL)),
 ):
     """Registra la decisión humana (aprobar / rechazar / mas_info) de una
     autorización en cola HITL.
 
     Audit log registra la intervención humana con hash encadenado.
     """
-    if usuario.rol not in _ROLES_HITL:
-        raise HTTPException(status_code=403, detail="Solo supervisores y administradores pueden resolver casos HITL")
     service = AutorizacionService(db)
     try:
         return service.aplicar_decision_hitl(
@@ -173,7 +173,7 @@ async def reenviar_con_documentacion(
     autorizacion_id: UUID,
     payload: ReenviarRequest,
     db: Session = Depends(get_db),
-    _usuario: Usuario = Depends(get_usuario_actual),
+    _usuario: Usuario = Depends(require_roles(*_ROLES_OPERATIVOS)),
 ):
     """Reenvía al agente una autorización en estado informacion_adicional_requerida.
 

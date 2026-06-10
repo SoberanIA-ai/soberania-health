@@ -10,6 +10,7 @@ const ESTADO_LABEL: Record<string, string> = {
   en_proceso: 'En proceso',
   recibido: 'Recibido',
   error: 'Error',
+  error_procesamiento: 'Error de procesamiento',
 }
 
 const ESTADO_CLASS: Record<string, string> = {
@@ -22,6 +23,7 @@ const ESTADO_CLASS: Record<string, string> = {
   en_proceso:      'bg-naranja-bg text-naranja',
   recibido:        'bg-naranja-bg text-naranja',
   error:           'bg-rojo-bg text-red-900',
+  error_procesamiento: 'bg-rojo-bg text-red-900',
 }
 
 export function estadoLabel(e: string) {
@@ -33,6 +35,7 @@ export function estadoColor(e: string): string {
     pendiente_hitl: '#ca8a04', autorizado: '#16a34a', denegado: '#dc2626',
     aprobado_hitl: '#16a34a', rechazado_hitl: '#dc2626',
     en_proceso: '#d97706', recibido: '#d97706', error: '#7f1d1d',
+    error_procesamiento: '#7f1d1d',
   }
   return m[e] || '#9ca3af'
 }

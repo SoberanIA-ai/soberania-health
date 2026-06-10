@@ -6,6 +6,27 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- **RBAC backend reforzado**: nueva dependencia `require_roles()` (`app/api/routes/auth.py`). Antes solo `/hitl` comprobaba el rol; cualquier usuario autenticado (incluido `auditor`, pensado para solo-lectura) podía llamar a `/procesar`, `/pendientes`, `/reenviar` y `/metricas-aiact`. Ahora:
+  - `/procesar`, `/reenviar` → `recepcionista`, `supervisor`, `admin`
+  - `/pendientes`, `/hitl` → `supervisor`, `admin`
+  - `/metricas-aiact` → `auditor`, `admin`
+- **CORS restringido**: `app/main.py` ya no usa `allow_origins=["*"]`. Los orígenes permitidos se leen de `CORS_ORIGINS` (nueva variable, coma-separada) vía `settings.cors_origins_list`.
+- **Fail-fast en producción** (`app/config.py`): si `ENVIRONMENT=production` y `JWT_SECRET_KEY`/`DATABASE_URL` siguen con los valores de demo, la app no arranca (`RuntimeError`) en vez de quedar expuesta con un secreto forjable o credenciales públicas.
+
+### Added
+- **Estado `error_procesamiento`**: nuevo estado del agente (`app/agent/state.py`) para fallos técnicos en llamadas externas (LLM/guardrail en `parse_orden_medica`, conector de aseguradora en `enviar_solicitud`). Cada nodo captura la excepción, registra su propio audit entry (`modo_inferencia: "error"`) y marca `hitl_requerido=True` para que el caso aparezca en la cola de revisión humana en lugar de devolver un 500 sin rastro.
+- **Aristas condicionales en `graph.py`**: `parse_orden_medica` y `enviar_solicitud` terminan el grafo (`END`) si transicionan a `error_procesamiento`.
+- **Red de seguridad en `AutorizacionService`**: `procesar()` y `reenviar_con_documentacion()` envuelven `grafo.ainvoke()`; si el grafo lanza una excepción no controlada, se persiste un audit entry `error_procesamiento`, la autorización queda marcada para HITL y se commitea (en vez de hacer rollback y perder el audit trail).
+- **Pool de conexiones DB configurable**: `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` (`app/models/database.py`, `app/config.py`).
+- Badge `error_procesamiento` en el frontend (`Badge.tsx`).
+- `tests/conftest.py`: fixtures `auth_admin` y `client_as` para overridear `get_usuario_actual` en tests de integración.
+- `tests/test_rbac.py`: cobertura de los 403/200 por rol en los endpoints reforzados.
+- `tests/test_error_handling.py`: cobertura de fallos simulados de LLM y conector → `error_procesamiento`.
+
+### Fixed
+- Suite de tests de integración (`test_hitl.py`, `test_audit.py`, `test_aiact.py`) rota tras requerir JWT en los endpoints — ahora usan `auth_admin`. `test_auth.py` usaba un email de admin obsoleto (`isabella@hmhospitales.es` → `isabella.cristancho@soberania.eu`).
+
 ## [0.3.0] — Next.js Frontend + RBAC + Flujo Más Info (Junio 2026)
 
 ### Added

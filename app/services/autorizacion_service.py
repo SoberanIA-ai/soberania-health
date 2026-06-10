@@ -43,13 +43,22 @@ class AutorizacionService:
 
         # 2. Invocar el grafo
         grafo = get_grafo()
-        final = await grafo.ainvoke(
-            {
-                "orden_raw": orden_raw,
-                "modo": modo,
-                "autorizacion_id": autorizacion_id_str,
-            }
-        )
+        try:
+            final = await grafo.ainvoke(
+                {
+                    "orden_raw": orden_raw,
+                    "modo": modo,
+                    "autorizacion_id": autorizacion_id_str,
+                }
+            )
+        except Exception as exc:
+            return await self._registrar_error_critico(
+                autorizacion,
+                autorizacion_id_str,
+                accion="procesar",
+                datos_entrada={"orden_raw": orden_raw, "modo": modo},
+                exc=exc,
+            )
 
         # 3. Persistir audit con SHA256 encadenado
         entries = final.get("audit_entries") or []
@@ -281,13 +290,22 @@ class AutorizacionService:
 
         # Correr el agente sobre el mismo autorizacion_id
         grafo = get_grafo()
-        final = await grafo.ainvoke(
-            {
-                "orden_raw": orden,
-                "modo": autorizacion.modo,
-                "autorizacion_id": str(autorizacion.id),
-            }
-        )
+        try:
+            final = await grafo.ainvoke(
+                {
+                    "orden_raw": orden,
+                    "modo": autorizacion.modo,
+                    "autorizacion_id": str(autorizacion.id),
+                }
+            )
+        except Exception as exc:
+            return await self._registrar_error_critico(
+                autorizacion,
+                str(autorizacion.id),
+                accion="reenviar_con_documentacion",
+                datos_entrada={"orden_raw": orden, "modo": autorizacion.modo},
+                exc=exc,
+            )
 
         # Encadenar audit entries al log existente
         entries = final.get("audit_entries") or []
@@ -295,6 +313,53 @@ class AutorizacionService:
 
         # Actualizar el registro existente con el resultado
         self._aplicar_resultado(autorizacion, final)
+        self.db.commit()
+        self.db.refresh(autorizacion)
+
+        from app.api.routes.notificaciones import emitir_evento
+        await emitir_evento("autorizacion_procesada", {
+            "autorizacion_id": str(autorizacion.id),
+            "estado": autorizacion.estado,
+            "paciente": autorizacion.paciente_nombre or "",
+            "aseguradora": autorizacion.aseguradora or "",
+        })
+
+        return autorizacion
+
+    async def _registrar_error_critico(
+        self,
+        autorizacion: Autorizacion,
+        autorizacion_id_str: str,
+        accion: str,
+        datos_entrada: dict,
+        exc: Exception,
+    ) -> Autorizacion:
+        """Red de seguridad si `grafo.ainvoke()` lanza una excepción no controlada.
+
+        Sin esto, el error se propagaría como 500, la transacción haría
+        rollback y se perdería el rastro de auditoría (sec 10 AI Act). En su
+        lugar dejamos la autorización en `error_procesamiento`, marcada para
+        revisión humana, con su propio audit entry.
+        """
+        razon = f"Fallo crítico en {accion}: {exc}"
+        entry = construir_entrada(
+            autorizacion_id=autorizacion_id_str,
+            accion="error_procesamiento",
+            actor="agente_autorizaciones",
+            datos_entrada=datos_entrada,
+            datos_salida={
+                "estado": "error_procesamiento",
+                "razon_decision": razon,
+                "modelo_version": "agente-v1.0.0-simulado",
+                "modo_inferencia": "error",
+            },
+            confidence=0.0,
+        )
+        self.audit_logger.persistir_cadena(autorizacion_id_str, [entry])
+
+        autorizacion.estado = "error_procesamiento"
+        autorizacion.hitl_requerido = True
+        autorizacion.razon_hitl = razon
         self.db.commit()
         self.db.refresh(autorizacion)
 

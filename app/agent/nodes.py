@@ -92,6 +92,44 @@ def _entry(
     )
 
 
+def _error_delta(
+    state: AuthorizationState,
+    accion: str,
+    actor: str,
+    datos_entrada: dict,
+    exc: Exception,
+) -> dict:
+    """Delta común cuando una llamada externa (LLM, conector) falla.
+
+    En vez de dejar que la excepción rompa el grafo a medio camino —y con
+    ello el audit trail y el commit de la transacción—, transicionamos a
+    `error_procesamiento` con su propio audit entry para no perder
+    trazabilidad (sec 10 AI Act).
+    """
+    razon = f"Fallo técnico en {accion}: {exc}"
+    return {
+        "estado": "error_procesamiento",
+        "errores": [razon],
+        "hitl_requerido": True,
+        "razon_hitl": razon,
+        "audit_entries": [
+            _entry(
+                state,
+                accion=accion,
+                actor=actor,
+                datos_entrada=datos_entrada,
+                datos_salida={
+                    "estado": "error_procesamiento",
+                    "razon_decision": razon,
+                    "modelo_version": "agente-v1.0.0-simulado",
+                    "modo_inferencia": "error",
+                },
+                confidence_score=0.0,
+            )
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Nodo 1 — parse_orden_medica (LLM)
 # ---------------------------------------------------------------------------
@@ -103,8 +141,17 @@ async def parse_orden_medica(state: AuthorizationState) -> dict:
     texto = hl7_parser.hl7_a_texto(orden_raw) if orden_raw.startswith("MSH") else orden_raw
 
     client = get_llm_client()
-    datos = await client.parse_orden_medica(texto)
-    validacion = await client.validar_guardrail(datos)
+    try:
+        datos = await client.parse_orden_medica(texto)
+        validacion = await client.validar_guardrail(datos)
+    except Exception as exc:
+        return _error_delta(
+            state,
+            accion="parse_orden_medica",
+            actor="agente_parser_llm",
+            datos_entrada={"orden_original": orden_raw},
+            exc=exc,
+        )
 
     campos_extraidos = {k: v for k, v in datos.items() if v not in (None, "", [])}
     campos_faltantes = [c for c in CAMPOS_OBLIGATORIOS_PARSER if not datos.get(c)]
@@ -410,7 +457,16 @@ async def enviar_solicitud(state: AuthorizationState) -> dict:
         seed=settings.mock_connector_seed,
         latencia_segundos=0,
     )
-    resultado = await connector.enviar(state["solicitud_generada"])
+    try:
+        resultado = await connector.enviar(state["solicitud_generada"])
+    except Exception as exc:
+        return _error_delta(
+            state,
+            accion="enviar_solicitud",
+            actor=f"connector_{modo}",
+            datos_entrada={"aseguradora": state.get("aseguradora")},
+            exc=exc,
+        )
 
     return {
         "solicitud_referencia": resultado["referencia"],

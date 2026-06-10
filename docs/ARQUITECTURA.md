@@ -37,15 +37,20 @@ URLs de cada servicio:
 
 | Email | Contraseña | Rol |
 |-------|-----------|-----|
-| `isabella@hmhospitales.es` | `soberania2026` | admin |
+| `isabella.cristancho@soberania.eu` | `soberania2026` | admin |
+| `recepcion@hmhospitales.es` | `recepcion2026` | recepcionista |
 | `supervisor@hmhospitales.es` | `supervisor2026` | supervisor |
 | `auditor@hmhospitales.es` | `auditor2026` | auditor |
 
-**Roles y permisos:**
-- `recepcionista`: pantallas operativas (autorizaciones, nueva autorización)
-- `supervisor`: recepcionista + puede revisar cola HITL
-- `auditor`: solo lectura + acceso al panel Auditoría AI Act
-- `admin`: acceso completo
+**Roles y permisos (RBAC backend, `app/api/routes/auth.py::require_roles`):**
+- `recepcionista`: `POST /procesar`, `POST /{id}/reenviar` (pantallas operativas, nueva autorización)
+- `supervisor`: recepcionista + `GET /pendientes`, `POST /{id}/hitl` (cola HITL)
+- `auditor`: solo lectura + `GET /metricas-aiact` (panel Auditoría AI Act)
+- `admin`: acceso completo a todos los endpoints anteriores
+
+`GET /` (listado), `GET /{id}`, `GET /metricas` y los endpoints de `audit` solo
+exigen JWT válido (`Depends(get_usuario_actual)`), sin restricción de rol —
+los usan las cuatro pantallas del dashboard.
 
 ---
 
@@ -57,8 +62,8 @@ soberania-health/
 ├── CHANGELOG.md                       # Historial de versiones
 ├── .env.example                       # Variables de entorno de ejemplo
 ├── .gitignore
-├── docker-compose.yml                 # Orquestación de servicios (api, db, langfuse, dashboard)
-├── Dockerfile                         # Imagen Python 3.12-slim para api y dashboard
+├── docker-compose.yml                 # Orquestación de servicios (api, frontend, db, langfuse)
+├── Dockerfile                         # Imagen Python 3.12-slim para el servicio api
 ├── requirements.txt                   # Dependencias Python
 ├── alembic.ini                        # Configuración de Alembic
 ├── pytest.ini                         # Configuración de pytest
@@ -68,14 +73,21 @@ soberania-health/
 │   ├── config.py                      # Settings Pydantic (lee .env)
 │   │
 │   ├── agent/                         # Grafo LangGraph 8 nodos — NO TOCAR
-│   │   ├── graph.py                   # Grafo principal con get_grafo()
-│   │   ├── nodes/                     # Cada nodo del grafo (parse, verify, hitl, generate, etc.)
-│   │   └── state.py                   # Schema del estado del grafo
+│   │   ├── graph.py                   # Grafo principal con get_grafo() + aristas condicionales
+│   │   ├── nodes.py                   # Los 8 nodos (parse, verify, hitl_check, generate, send, monitor, process, notify)
+│   │   ├── llm_client.py              # Cliente LLM con fallback mock determinístico
+│   │   ├── prompts.py                 # System prompts del parser y guardrail
+│   │   └── state.py                   # Schema del estado del grafo (AuthorizationState)
 │   │
 │   ├── calculadores/                  # Lógica de negocio Python puro — NO TOCAR
-│   │   ├── sanitas_calculador.py      # Reglas de cobertura Sanitas
-│   │   ├── adeslas_calculador.py      # Reglas de cobertura Adeslas
-│   │   └── dkv_calculador.py          # Reglas de cobertura DKV
+│   │   ├── identificador_aseguradora.py # Normaliza el nombre de aseguradora detectado
+│   │   ├── verificador_cobertura.py   # Decide cobertura + requiere_autorizacion
+│   │   ├── codigos_sanitas.py         # Catálogo de códigos Sanitas (CIE-10 → código aseguradora)
+│   │   ├── codigos_adeslas.py         # Catálogo de códigos Adeslas
+│   │   ├── codigos_dkv.py             # Catálogo de códigos DKV
+│   │   ├── generador_solicitud.py     # Genera el payload de solicitud para el conector
+│   │   ├── reglas_cobertura.py        # Reglas generales de cobertura
+│   │   └── plazos_respuesta.py        # Plazos de respuesta por aseguradora
 │   │
 │   ├── conectores/                    # Adaptadores para aseguradoras
 │   │   ├── base_connector.py          # Contrato abstracto BaseConnector — NO TOCAR
@@ -94,9 +106,9 @@ soberania-health/
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── health.py              # GET /api/v1/health
-│   │   │   ├── autorizaciones.py      # CRUD autorizaciones + métricas — NO TOCAR
+│   │   │   ├── autorizaciones.py      # CRUD autorizaciones + métricas + RBAC por endpoint — NO TOCAR
 │   │   │   ├── audit.py               # GET /api/v1/audit/{id} + aiact-report — NO TOCAR
-│   │   │   ├── auth.py                # POST /api/v1/auth/login, GET /api/v1/auth/me
+│   │   │   ├── auth.py                # POST /api/v1/auth/login, GET /api/v1/auth/me, require_roles()
 │   │   │   └── notificaciones.py      # GET /api/v1/notificaciones/stream (SSE)
 │   │   └── schemas/
 │   │       ├── autorizacion.py        # Schemas Pydantic de autorización — NO TOCAR
@@ -119,13 +131,15 @@ soberania-health/
 ├── frontend/                          # Dashboard principal (Next.js + Tailwind)
 │   ├── src/                           # Código fuente React
 │   ├── public/                        # Assets estáticos
+│   ├── Dockerfile                     # Imagen Node para el servicio frontend
 │   └── package.json                   # Dependencias Node.js
 │
 ├── alembic/
 │   └── versions/
 │       ├── 0001_initial.py            # Schema inicial
 │       ├── 0002_widen_cie10.py        # Amplía VARCHAR para códigos simulados
-│       └── 0003_add_usuarios.py       # Tabla usuarios + seed de demo
+│       ├── 0003_add_usuarios.py       # Tabla usuarios + seed de demo
+│       └── e08d6087a1f6_add_razon_hitl.py # Columna razon_hitl en autorizaciones
 │
 ├── docs/
 │   ├── SOBERANIA_HEALTH_HANDOFF.md    # Spec MVP original David Fernández — NUNCA TOCAR
@@ -138,6 +152,7 @@ soberania-health/
 │   └── run_demo.py                    # Script demo original — NO TOCAR
 │
 └── tests/
+    ├── conftest.py                    # Fixtures auth_admin / client_as (override JWT)
     ├── test_health.py                 # Health check
     ├── test_calculadores.py           # Calculadores Python puro
     ├── test_agent.py                  # Grafo LangGraph
@@ -146,7 +161,9 @@ soberania-health/
     ├── test_e2e.py                    # 30 casos E2E (10×aseguradora)
     ├── test_aiact.py                  # Compliance AI Act
     ├── test_demo_extraction.py        # Extracción de aseguradora
-    └── test_auth.py                   # Autenticación JWT (Fase A)
+    ├── test_auth.py                   # Autenticación JWT (Fase A)
+    ├── test_rbac.py                   # RBAC por rol (403/200 en endpoints reforzados)
+    └── test_error_handling.py         # Fallos LLM/conector → error_procesamiento
 ```
 
 ---
@@ -173,23 +190,40 @@ soberania-health/
    ├─ process_respuesta ───── Calculador Python: interpreta respuesta y decide
    └─ notify ──────────────── Registra resultado final
 
+   Aristas condicionales (`graph.py`): si `parse_orden_medica` o
+   `send_to_aseguradora` lanzan una excepción (LLM caído, conector caído),
+   el nodo captura el error, escribe `estado="error_procesamiento"` y el
+   grafo termina en `END` en vez de continuar con datos a medias.
+   `AutorizacionService` tiene además una red de seguridad: si el grafo
+   entero lanza una excepción no controlada, igualmente se persiste un
+   audit entry `error_procesamiento` y la autorización se marca para HITL.
+
 5. AuditLogger.persistir_cadena():
    - Cada paso genera un AuditLog con hash SHA256 encadenado al anterior
    - El primero tiene hash_previo="GENESIS"
    - Cualquier manipulación posterior rompe la cadena → detectable
 
 6. Resultado almacenado en tabla autorizaciones:
-   - estado: "autorizado" | "denegado" | "pendiente_hitl" | "error"
+   - estado: "autorizado" | "denegado" | "pendiente_hitl" | "informacion_adicional_requerida" | "error_procesamiento"
    - confidence_score: 0.0–1.0
    - numero_autorizacion: si fue autorizado (ej: "AUTH-035BB1C7")
+   - razon_hitl: motivo exacto que escribió el agente (visible para el supervisor en el drawer)
 
 7. SSE: emitir_evento("autorizacion_procesada", {...}) notifica al dashboard en tiempo real
 
-8. Si estado=pendiente_hitl:
-   - El supervisor ve el caso en "Cola HITL"
-   - Hace POST /api/v1/autorizaciones/{id}/hitl { decision, revisor, notas }
+8. Si estado=pendiente_hitl o error_procesamiento:
+   - El caso aparece en "Cola HITL" (GET /pendientes)
+   - El supervisor hace POST /api/v1/autorizaciones/{id}/hitl { decision, revisor, notas }
    - Estado → "aprobado_hitl" | "rechazado_hitl" | "informacion_adicional_requerida"
    - Queda registrado en audit log con hitl_intervencion=True
+
+9. Si estado=informacion_adicional_requerida:
+   - La recepcionista ve en el drawer el mensaje del supervisor (razon_hitl)
+   - Sube documentación adicional y hace POST /api/v1/autorizaciones/{id}/reenviar
+     { notas_adicionales, archivos_adjuntos }
+   - AutorizacionService.reenviar_con_documentacion() vuelve a correr el
+     agente sobre el MISMO registro, encadenando el audit log existente
+     (no crea una autorización nueva)
 ```
 
 ---
@@ -200,7 +234,7 @@ soberania-health/
 2. **El LLM nunca decide códigos ni datos numéricos** — solo los calculadores Python son fuente de verdad.
 3. **HITL obligatorio en modo real** — hasta confidence acumulado >0.95 en 100 autorizaciones consecutivas.
 4. **Mock mode siempre disponible** — ninguna demo depende de credenciales externas.
-5. **Test suite antes de cualquier deploy de calculadores** — nunca actualizar calculadores sin pasar 107/107.
+5. **Test suite antes de cualquier deploy de calculadores** — nunca actualizar calculadores sin pasar 229/229.
 6. **Audit log es sagrado** — nunca se borra, nunca se modifica. Inmutabilidad criptográfica SHA256.
 7. **MVP primero, perfección después** — nada fuera del alcance hasta tener el piloto en marcha.
 8. **Cada decisión técnica relevante se documenta en /docs** — un markdown por componente nuevo.
@@ -220,37 +254,64 @@ soberania-health/
 | **Mistral (API)** | LLM para parser; sin self-hosting, sin datos de pacientes en el modelo |
 | **PostgreSQL 16** | Transacciones ACID para audit log inmutable |
 | **Alembic** | Migraciones versionadas, trazables en git |
-| **Docker Compose** | Entorno reproducible: api + db + langfuse + dashboard Streamlit |
-| **HTML/CSS/JS vanilla** | Dashboard sin frameworks ni build tools: cero dependencias de frontend |
-| **Chart.js (CDN)** | Gráficos en el dashboard sin bundler |
-| **python-jose + passlib** | JWT para autenticación del dashboard |
+| **Docker Compose** | Entorno reproducible: servicios `api` + `frontend` + `db` + `langfuse` |
+| **Next.js 14 (App Router) + TypeScript** | Dashboard `frontend/`: SSR, rutas protegidas por rol, tipado end-to-end |
+| **Tailwind CSS** | Estilos del dashboard, sin CSS a medida |
+| **Recharts** | Gráficos del dashboard (donut, barras) |
+| **python-jose + passlib** | JWT para autenticación de la API |
 | **Langfuse** | Observabilidad de trazas LLM (opcional en local) |
 
 ---
 
 ## 8. Mapa completo de endpoints
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/v1/health` | Health check: `{status, version, calculadores_version}` |
-| POST | `/api/v1/autorizaciones/procesar` | Procesar nueva orden: `{orden_h17, modo}` → `{autorizacion_id, estado, confidence_score}` |
-| GET | `/api/v1/autorizaciones/` | Listar todas (limit=200) |
-| GET | `/api/v1/autorizaciones/pendientes` | Listar pendientes HITL |
-| GET | `/api/v1/autorizaciones/metricas` | KPIs: total, autorizadas, pendientes, tasa_automatizacion |
-| GET | `/api/v1/autorizaciones/metricas-aiact` | Métricas AI Act: supervisión, contradicciones, tiempo |
-| GET | `/api/v1/autorizaciones/{id}` | Detalle de una autorización |
-| POST | `/api/v1/autorizaciones/{id}/hitl` | Decisión HITL: `{decision, revisor, notas}` |
-| GET | `/api/v1/audit/{id}` | Audit log + verificación SHA256 |
-| GET | `/api/v1/audit/{id}/aiact-report` | Reporte AI Act estructurado (JSON exportable) |
-| POST | `/api/v1/auth/login` | Login: `{email, password}` → `{access_token, usuario}` |
-| GET | `/api/v1/auth/me` | Datos del usuario autenticado |
-| GET | `/api/v1/notificaciones/stream` | SSE stream de notificaciones (token en query param) |
-| POST | `/api/v1/integraciones/doctoris/orden` | Hook Doctoris (STUB) |
-| GET | `/api/v1/integraciones/doctoris/status` | Estado integración Doctoris |
+| Método | Endpoint | Descripción | Acceso |
+|--------|----------|-------------|--------|
+| GET | `/api/v1/health` | Health check: `{status, version, calculadores_version}` | público |
+| POST | `/api/v1/autorizaciones/procesar` | Procesar nueva orden: `{orden_h17, modo}` → `{autorizacion_id, estado, confidence_score}`. `estado` puede salir como `error_procesamiento` si falla el LLM o el conector | recepcionista, supervisor, admin |
+| GET | `/api/v1/autorizaciones/` | Listar todas (limit=200) | auth |
+| GET | `/api/v1/autorizaciones/pendientes` | Listar pendientes HITL (incluye `pendiente_hitl` y `error_procesamiento`) | supervisor, admin |
+| GET | `/api/v1/autorizaciones/metricas` | KPIs: total, autorizadas, pendientes, tasa_automatizacion | auth |
+| GET | `/api/v1/autorizaciones/metricas-aiact` | Métricas AI Act: supervisión, contradicciones, tiempo | auditor, admin |
+| GET | `/api/v1/autorizaciones/{id}` | Detalle de una autorización | auth |
+| POST | `/api/v1/autorizaciones/{id}/hitl` | Decisión HITL: `{decision, revisor, notas}` | supervisor, admin |
+| POST | `/api/v1/autorizaciones/{id}/reenviar` | Reenviar con documentación adjunta: `{notas_adicionales, archivos_adjuntos}`. Reprocesa el grafo sobre el mismo registro (solo si `estado=informacion_adicional_requerida`) | recepcionista, supervisor, admin |
+| GET | `/api/v1/audit/{id}` | Audit log + verificación SHA256 | auth |
+| GET | `/api/v1/audit/{id}/aiact-report` | Reporte AI Act estructurado (JSON exportable) | auth |
+| POST | `/api/v1/auth/login` | Login: `{email, password}` → `{access_token, usuario}` | público |
+| GET | `/api/v1/auth/me` | Datos del usuario autenticado | auth |
+| GET | `/api/v1/notificaciones/stream` | SSE stream de notificaciones (token en query param) | auth |
+| POST | `/api/v1/integraciones/doctoris/orden` | Hook Doctoris (STUB) | — |
+| GET | `/api/v1/integraciones/doctoris/status` | Estado integración Doctoris | — |
+
+`auth` = requiere JWT válido (`Depends(get_usuario_actual)`), cualquier rol.
+Los roles concretos se imponen vía `require_roles(...)` —
+ver `app/api/routes/auth.py` y sección 3.
 
 ---
 
-## 9. Cómo añadir una nueva aseguradora
+## 9. Configuración / Seguridad
+
+Variables relevantes en `.env` (ver `.env.example`):
+
+| Variable | Descripción |
+|----------|-------------|
+| `ENVIRONMENT` | `development` (default) o `production`. En `production`, la app **no arranca** (`RuntimeError`) si `JWT_SECRET_KEY` o `DATABASE_URL` siguen con sus valores de demo (ver `app/config.py::_validar_secretos_produccion`). |
+| `CORS_ORIGINS` | Orígenes permitidos para el frontend, separados por coma. Se expone vía `settings.cors_origins_list` y reemplaza el antiguo `allow_origins=["*"]` en `app/main.py`. |
+| `JWT_SECRET_KEY` / `JWT_EXPIRE_MINUTES` | Firma y expiración del token de sesión (8h por defecto). |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | Tamaño del pool de conexiones SQLAlchemy (`app/models/database.py`, `create_engine(..., pool_pre_ping=True)`). |
+
+**Manejo de errores externos:** si una llamada al LLM (parser/guardrail) o
+al conector de la aseguradora falla (timeout, 5xx, credenciales caducadas),
+el agente **no devuelve un 500 sin más**. El nodo correspondiente captura
+la excepción, transiciona a `estado="error_procesamiento"`, escribe su
+propia entrada en el audit log (`modo_inferencia: "error"`) y marca
+`hitl_requerido=True` para que el caso aparezca en la cola de revisión
+humana (`GET /pendientes`). Ver sección 5, paso 4.
+
+---
+
+## 10. Cómo añadir una nueva aseguradora
 
 1. Crear `app/calculadores/{aseg}_calculador.py` con `CalculadorCobertura{Aseg}`.
 2. Crear `app/conectores/{aseg}_connector.py` que extiende `BaseConnector`.
@@ -262,7 +323,7 @@ soberania-health/
 
 ---
 
-## 10. Cómo actualizar un catálogo de procedimientos
+## 11. Cómo actualizar un catálogo de procedimientos
 
 1. HM proporciona Google Sheet con los procedimientos validados.
 2. Exportar como CSV y convertir a JSON en `data/catalogos/`.
@@ -272,7 +333,7 @@ soberania-health/
 
 ---
 
-## 11. Datos simulados (DATA_STATUS)
+## 12. Datos simulados (DATA_STATUS)
 
 Todos los calculadores tienen `DATA_STATUS` que indica el estado de los datos:
 
@@ -286,7 +347,7 @@ Actualmente todas las aseguradoras están en `SIMULADO`. El cambio a `VALIDADO` 
 
 ---
 
-## 12. Compliance AI Act
+## 13. Compliance AI Act
 
 El sistema es de **alto riesgo** según el Artículo 6 y Anexo III punto 5.a del Reglamento UE 2024/1689.
 
@@ -298,13 +359,13 @@ El sistema es de **alto riesgo** según el Artículo 6 y Anexo III punto 5.a del
 | Art. 12 | Mantenimiento de registros | Audit log SHA256 encadenado, inmutable |
 | Art. 13 | Transparencia | `razon_decision` en cada entrada del audit log |
 | Art. 14 | Supervisión humana | Cola HITL, revisor registrado en audit log |
-| Art. 15 | Exactitud y ciberseguridad | Test suite 107/107, JWT, bcrypt |
+| Art. 15 | Exactitud y ciberseguridad | Test suite 229/229, JWT, bcrypt, RBAC por rol, CORS restringido |
 
 Ver detalles completos en `docs/AI_ACT_COMPLIANCE.md`.
 
 ---
 
-## 13. Glosario
+## 14. Glosario
 
 | Término | Definición |
 |---------|-----------|
@@ -322,12 +383,14 @@ Ver detalles completos en `docs/AI_ACT_COMPLIANCE.md`.
 
 ---
 
-## 14. Historial de fases
+## 15. Historial de fases
 
 | Fase | Descripción | Estado |
 |------|-------------|--------|
 | Fases 0–6 (MVP) | Agente completo, 107 tests, 3 aseguradoras mock. David Fernández. | ✅ Completado |
 | **Fase A** | Dashboard v2, auth JWT, SSE, panel AI Act. Isabella Cristancho. | ✅ Completado |
+| **0.3.0** | Frontend Next.js 14 (reemplaza dashboard estático), RBAC frontend completo, flujo "Más información" (`/reenviar`), `razon_hitl` en BD. | ✅ Completado |
+| **Hardening (este repo, post-audit)** | RBAC backend granular por endpoint (`require_roles`), CORS vía `CORS_ORIGINS`, fail-fast de secretos en producción, estado `error_procesamiento` con aristas condicionales en el grafo, pool de conexiones DB configurable, suite ampliada a 229/229. | ✅ Completado |
 | Fase B | Catálogos reales Sanitas/Adeslas/DKV validados con HM. | 🔲 Pendiente |
 | Fase C | Conectores reales (APIs privadas). Requiere acceso a entornos PRE de HM. | 🔲 Pendiente |
 | Fase D | Multi-hospital, escalado. | 🔲 Pendiente |

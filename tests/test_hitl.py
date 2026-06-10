@@ -32,7 +32,7 @@ def limpiar_db():
 
 
 @pytest.fixture
-def client():
+def client(auth_admin):
     return TestClient(app)
 
 
